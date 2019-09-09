@@ -47,26 +47,22 @@ The scheme for the connection of the core components is as following:
 
 The code for the device is aware of the connected sensors to it, so even if one of them mailfunctions or it's completely missing, it will just be ignored and those values will not be sent to the platform.
 
-## Flashing the software
+## Using the firmware
 
-First of all, you need to install the necessary device driver in order to be able to communicate with the NodeMCU.
+First, download and install the latest Arduino IDE. Initially it comes configured for the standard Arduino boards, so you need to extend it to use ESP8266 boards as well. For that, follow the instructions with the Board Manager as described [here](https://github.com/esp8266/Arduino).
+
+Next, you need to install the necessary device driver in order to be able to communicate with the NodeMCU.
 In general, [the official device driver options](https://www.silabs.com/products/development-tools/software/usb-to-uart-bridge-vcp-drivers) should do.
 However, if you're experiencing problems, you might wanna check with a [different option here](https://github.com/nodemcu/nodemcu-devkit/tree/master/Drivers), or if you're using MacOS, [maybe even here](https://github.com/adrianmihalko/ch340g-ch34g-ch34x-mac-os-x-driver).
 
-Next, you need a flasher util. Multiple options are available here, but we suggest to use the [NodeMCU PyFlasher](https://github.com/marcelstoer/nodemcu-pyflasher). Head to the [release section](https://github.com/marcelstoer/nodemcu-pyflasher/releases), and download the software based on your OS.
+Start the Arduino IDE. Before loading the sketch, you need to make sure that everything else is prepared:
+- from the Tools -> Board menu, select NodeMCU 1.0
+- open the Sketch -> Include Library -> Manage libraries menu item and make sure that you have the following libraries installed: Adafruit Unified Sensor, Adafruit BME680 and Adafruit BME280.
 
-You can [download the binary for the pulse.eco Wi-Fi sensor v2 here](other/citypulse-v2_1-wifi.ino.nodemcu.bin).
+Finally plug in your board. If everything is fine, you should see a valid entry to select in the Tools -> Port menu.  
 
-In order to finally flash the firmware onto the device, follow these steps:
-- plugin the device to the computer via a data Micro-USB cable. If your device driver is installed correctly this should register a COM port or a device to your OS.
-- start the NodeMUC PyFlasher.
-- choose the correct serial port
-- locate the downloaded firmware location
-- choose the following options: Baud Rate: 115200, Flash Mode: Quad Flash I/O, erase flash: no.
-- click flash, and follow the progress.
-
-In general, the NodeMCU realizes that the computer is initiating a flash, and sets the ESP chip into flash mode. 
-However, with some devices this doesn't happen. If you encounter such a problem, click and hold the Flash button on the NodeMCU, press flash on the NodeMCU PyFlasher, and see if this will start the flashing procedure. If yes, and you can release the flash button on the nodemcu.
+When flashing, in general, the NodeMCU realizes that the computer is initiating a flash, and sets the ESP chip into flash mode. 
+However, with some devices this doesn't happen. If you encounter such a problem, click and hold the Flash button on the NodeMCU, press upload in the Arudino IDE, and see if this will start the flashing procedure. If yes, and you can release the flash button.
 
 ## Configuration
 
