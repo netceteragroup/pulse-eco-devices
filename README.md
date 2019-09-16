@@ -12,3 +12,5 @@ Adafruit Unified Sensor Library and Adafruit BME680 library are developed and ma
 Adafruit BME280 library: Copyright (c) 2015, Limor Fried & Kevin Townsend for Adafruit Industries. All rights reserved.
 
 The SDS011 code used is a modification of the [AQI Sensor demo](https://github.com/igrr/aqi-sensor-demo) by [Ivan Grokhotkov](https://github.com/igrr).
+
+The rn2483.h and rn2483.cpp are from the [Arduino RN2483 library](https://github.com/jpmeijers/RN2483-Arduino-Library) by [JP Meijers](https://github.com/jpmeijers). The library is licensed under Apache 2.0
