@@ -1,5 +1,11 @@
 # pulse.eco Wi-Fi sensor v2
 
+## Important
+
+Seems that this code or parts of it is not really compatible with higher versions of the ESP8266 Core. The safe bet option is to use v. 2.3.0.
+
+In order to check what version of ESPCore in Arduino you are using, go to: Tools -> Boards -> Board manager and there search for esp8266. Check for the installed version. If it's not 2.3.0, choose it from the combo box and hit install.
+
 ## Description
 
 This document describes how to construct and prepare the "pulse.eco Wi-Fi sensor version 2". It is a device based on the ESP8266 chip by Espressif that uses Wi-Fi and HTTPS data transmission.
