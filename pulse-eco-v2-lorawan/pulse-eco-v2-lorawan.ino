@@ -1,30 +1,41 @@
+
+//------------------------------------------------------------------------
+// Set your DevAddr, NwkSKey, AppSKey, SpreadFactor and the frequency plan
+#define DEVADDR "00000000"
+#define NWSKEY  "00000000000000000000000000000000"
+#define APPSKEY "00000000000000000000000000000000"
+#define SF 11
+
+// Replace REPLACE_ME with TTN_FP_EU868 or TTN_FP_US915
+#define freqPlan TTN_FP_EU868
+
+// Use BME680 or BME280. Do not have both defines present.
+#define USE_BME680 1
+
+//------------------------------------------------------------------------
+
 #include <TheThingsNetwork.h>
 #include <SoftwareSerial.h>
 
 // General def for adafruit sensor
 #include <Adafruit_Sensor.h>
-
 // Includes for BME680 
-#include <bme680.h>
-#include <Adafruit_BME680.h>
-#include <bme680_defs.h>
-
+#ifdef USE_BME680
+  #include <bme680.h>
+  #include <Adafruit_BME680.h>
+  #include <bme680_defs.h>
+#endif
+// Includes for BME280
+#ifdef USE_BME280
+  #include <Adafruit_BME280.h>
+#endif
+  
 #include "Sds011.h"
-
-// Includes for BME280pac
-//#include <Adafruit_BME280.h>
-
-// Set your DevAddr, NwkSKey, AppSKey and the frequency plan
-const char *devAddr = "********";
-const char *nwkSKey = "********************************";
-const char *appSKey = "********************************";
-#define SPREAD_FACTOR 11
-#define freqPlan TTN_FP_EU868
 
 #define loraSerial Serial1
 #define debugSerial Serial
 
-TheThingsNetwork ttn(loraSerial, debugSerial, freqPlan, SPREAD_FACTOR);
+TheThingsNetwork ttn(loraSerial, debugSerial, freqPlan, SF);
 
 
 //Development / production profiles
@@ -48,13 +59,17 @@ TheThingsNetwork ttn(loraSerial, debugSerial, freqPlan, SPREAD_FACTOR);
 
 #endif
 
-//Sharp Dust Sensor Pins
+//SDS011 Sensor Pins
 #define SDS_RX_PIN 8
 #define SDS_TX_PIN 5
 
-//Init global objects
-Adafruit_BME680 bme680; // I2C
-//Adafruit_BME280 bme280; // I2C
+//BME Sensor init
+#ifdef USE_BME680
+  Adafruit_BME680 bme680; // I2C
+#endif
+#ifdef USE_BME280
+  Adafruit_BME280 bme280; // I2C
+#endif
 
 //Noise sensor pins
 #define NOISE_MEASURE_PIN A0
@@ -84,10 +99,10 @@ void setup(void)
       ;
 
     SH_DEBUG_PRINTLN("Startup");
-      #ifndef NO_CONNECTION_PROFILE
+    #ifndef NO_CONNECTION_PROFILE
 
       debugSerial.println("-- PERSONALIZE");
-      ttn.personalize(devAddr, nwkSKey, appSKey);
+      ttn.personalize(DEVADDR, NWSKEY, APPSKEY);
     
       debugSerial.println("-- STATUS");
       ttn.showStatus();
@@ -109,31 +124,38 @@ void setup(void)
     //Init the temp/hum sensor
     // Set up oversampling and filter initialization
     //SH_DEBUG_PRINTLN("Looking for BMEx80....");
-    hasBME680 = true;
-    if (!bme680.begin(0x76)) {
-      if (!bme680.begin(0x77)) {
-        SH_DEBUG_PRINTLN("No BMEx80 found! Check wiring!");
-        hasBME680 = false;
+    #ifdef USE_BME680
+      hasBME680 = true;
+      if (!bme680.begin(0x76)) {
+        if (!bme680.begin(0x77)) {
+          SH_DEBUG_PRINTLN("No BME680 found! Check wiring!");
+          hasBME680 = false;
+        }
       }
-    }
-    if (hasBME680) {
-      bme680.setTemperatureOversampling(BME680_OS_8X);
-      bme680.setHumidityOversampling(BME680_OS_2X);
-      bme680.setPressureOversampling(BME680_OS_4X);
-      bme680.setIIRFilterSize(BME680_FILTER_SIZE_3);
-      bme680.setGasHeater(320, 150); // 320*C for 150 ms
-    }
-  
-//    if (!hasBME680) {
-//      //No BME680 found, trying out BME280 instead
-//      hasBME280 = true;
-//      if (!bme280.begin(0x76)) {
-//        if (!bme280.begin(0x77)) {
-//          SH_DEBUG_PRINTLN("Could not find a valid BME280 sensor, check wiring!");
-//          hasBME280 = false;
-//        }
-//      }
-//    }
+      if (hasBME680) {
+        bme680.setTemperatureOversampling(BME680_OS_8X);
+        bme680.setHumidityOversampling(BME680_OS_2X);
+        bme680.setPressureOversampling(BME680_OS_4X);
+        bme680.setIIRFilterSize(BME680_FILTER_SIZE_3);
+        bme680.setGasHeater(320, 150); // 320*C for 150 ms
+      }
+    #else
+      hasBME680 = false;
+    #endif
+    #ifdef USE_BME280
+      if (!hasBME680) {
+        //No BME680 found, trying out BME280 instead
+        hasBME280 = true;
+        if (!bme280.begin(0x76)) {
+          if (!bme280.begin(0x77)) {
+            SH_DEBUG_PRINTLN("No BME280 found! Check wiring!");
+            hasBME280 = false;
+          }
+        }
+      }
+    #else
+      hasBME280 = false;
+    #endif
   
     if (hasBME680) {
       SH_DEBUG_PRINTLN("Found BME680");
@@ -186,8 +208,6 @@ void loop() {
     }
     
 
-    //This will be different on Arduino and ESP. Probably need to attenuate the ESP a bit.
-    //TODO: see up to which freq. is needed to sample in order to keep into 'noise' band.
     #ifdef NO_CONNECTION_PROFILE
       noiseMeasureLength = millis() - noiseMeasureLength;
       SH_DEBUG_PRINT("Noise measurement took: ");
@@ -216,25 +236,26 @@ void loop() {
       int pressure = 0;
       int gasResistance = 0;
       while (--countTempHumReadouts > 0) {
-        if (hasBME680) {
-          if (! bme680.performReading()) {
-            SH_DEBUG_PRINTLN("BME read failure!");
-            //return;
-          } else {
-            temp = bme680.temperature;
-            humidity = bme680.humidity;
-            pressure = bme680.pressure / 100;
-            gasResistance = bme680.gas_resistance;
+        #ifdef USE_BME680
+          if (hasBME680) {
+            if (! bme680.performReading()) {
+              SH_DEBUG_PRINTLN("BME read failure!");
+              //return;
+            } else {
+              temp = bme680.temperature;
+              humidity = bme680.humidity;
+              pressure = bme680.pressure / 100;
+              gasResistance = bme680.gas_resistance;
+            }
           }
-//        } 
-//        else if (hasBME280) {
-//          temp = bme280.readTemperature();
-//          humidity = bme280.readHumidity();
-//          pressure = bme280.readPressure() / 100;
-        } else {
-          // No temp/hum sensor
-          break;
-        }
+        #endif
+        #ifdef USE_BME280
+          if (hasBME280) {
+            temp = bme280.readTemperature();
+            humidity = bme280.readHumidity();
+            pressure = bme280.readPressure() / 100;
+          }
+        #endif
         if (humidity <= 0 || humidity > 100 || temp > 100 || temp < -100 || pressure <= 0) {
           //fake result, pause and try again.
           delay(3000);
@@ -282,6 +303,13 @@ void loop() {
     //- 2 bytes pressure
         
       packet[0]=1; //version to be changed to something else
+      //couple of versions shold be used, bitmask sort of present values
+      //sds
+      //temp/hum/pres
+      //gas
+      //noise
+      //maybe the first byte to have a different version number
+      //and a second one to be a mask of the used values.
       packet[1]=(byte)hextemp;
       packet[2]=(byte)hexhum;
       packet[3]=(byte)noise; //noise
@@ -351,6 +379,5 @@ short median(short sorted[],int m) //calculate the median
     return (sorted[(m/2)-1]+sorted[m/2])/2; //If the number of data points is even, return avg of the middle two numbers.
   }
 }
-
 
 
