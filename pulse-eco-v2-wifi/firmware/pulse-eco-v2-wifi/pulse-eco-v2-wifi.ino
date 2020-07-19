@@ -16,6 +16,9 @@
 // Includes for BME280
 #include <Adafruit_BME280.h>
 
+// Include for the MultiChannelGas Sensor
+#include <MiCS6814-I2C.h>
+
 #define SEALEVELPRESSURE_HPA (1013.25)
 
 //Development / production profiles
@@ -47,6 +50,7 @@
 //Init global objects
 Adafruit_BME680 bme680; // I2C
 Adafruit_BME280 bme280; // I2C
+MiCS6814 gas; //I2C
 SoftwareSerial sdsSerial(SDS_RX_PIN, SDS_TX_PIN); // RX, TX
 sds011::Sds011 sdsSensor(sdsSerial);
 ESP8266WebServer server(80);
@@ -62,6 +66,7 @@ String password="";
 int status = -1;
 bool hasBME680 = false;
 bool hasBME280 = false;
+bool hasMultigasSensor = false;
 
 // TCP + TLS
 IPAddress apIP(192, 168, 1, 1);
@@ -188,6 +193,15 @@ void setup() {
     SH_DEBUG_PRINTLN("Found a BME280 sensor attached");
   }
 
+  hasMultigasSensor = true;
+  if (!gas.begin(0x04)) {
+    SH_DEBUG_PRINTLN("Could not find a valid Multichannel Gas sensor, check wiring!");
+    hasMultigasSensor = false;
+  }
+  if (hasMultigasSensor) {
+    gas.powerOn();
+  }
+
   //Init the pm SENSOR
   sdsSerial.begin(9600);
   delay(2000);
@@ -288,6 +302,12 @@ int loopCycleCount = 0;
 int noiseTotal = 0;
 int pm10 = 0;
 int pm25 = 0;
+float nh3_ppm = 0;
+float no2_ppm = 0;
+float co_ppm = 0;
+int nh3_ppb = 0;
+int no2_ppb = 0;
+int co_ppb = 0;
 
 
 // No Connection counter
@@ -395,6 +415,16 @@ void loop() {
       }
       
       int noise = ((int)noiseTotal / loopCycleCount) / 4 + 10; //mapped to 0-255
+
+      if (hasMultigasSensor) {
+        nh3_ppm = gas.measureNH3();//ppm
+        no2_ppm = gas.measureNO2();//ppm
+        co_ppm = gas.measureCO();//ppm
+        
+        nh3_ppb = nh3_ppm * 1000;//ppb
+        no2_ppb = no2_ppm * 1000; //ppb
+        co_ppb = co_ppm * 1000; //ppb
+      }
       
       bool pm10SensorOK = true;
       //sdsSerial.listen();
@@ -430,6 +460,14 @@ void loop() {
         SH_DEBUG_PRINT(", gasresistance: ");
         SH_DEBUG_PRINT_DEC(gasResistance, DEC); 
       }
+      if (hasMultigasSensor) {
+        SH_DEBUG_PRINT(", nh3_ppb: ");
+        SH_DEBUG_PRINT_DEC(nh3_ppb, DEC);
+        SH_DEBUG_PRINT(", no2_ppb: ");
+        SH_DEBUG_PRINT_DEC(no2_ppb, DEC);
+        SH_DEBUG_PRINT(", co_ppb: ");
+        SH_DEBUG_PRINT_DEC(co_ppb, DEC);
+      }
       SH_DEBUG_PRINTLN("");
 
       //do the send here
@@ -452,6 +490,11 @@ void loop() {
       }
       if (hasBME680) {
         url += "&gasresistance=" + String(gasResistance);
+      }
+      if (hasMultigasSensor) {
+        url += "&nh3_ppb=" + String(nh3_ppb);
+        url += "&no2_ppb=" + String(no2_ppb);
+        url += "&co_ppb=" + String(co_ppb);
       }
       #ifdef DEBUG_PROFILE
         SH_DEBUG_PRINT("Invoking: ");
