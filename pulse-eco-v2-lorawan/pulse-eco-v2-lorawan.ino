@@ -9,8 +9,10 @@
 // Replace REPLACE_ME with TTN_FP_EU868 or TTN_FP_US915
 #define freqPlan TTN_FP_EU868
 
-// Use BME680 or BME280. Do not have both defines present.
-#define USE_BME680 1
+// Use BME680 or BME280. Do not have both defines present!
+#define USE_BME280 1
+//#define USE_BME680 1
+
 
 //------------------------------------------------------------------------
 
@@ -38,9 +40,11 @@
 TheThingsNetwork ttn(loraSerial, debugSerial, freqPlan, SF);
 
 
-//Development / production profiles
-//#define NO_CONNECTION_PROFILE 1
-//#define DEBUG_PROFILE 1
+// Uncomment if you want to test the device without LoRaWAN connectivity
+#define NO_CONNECTION_PROFILE 1
+// Uncomment if you want to enable debug lines printing in console and more 2 minutes interval
+// USE WITH CARE SINCE IT MIGHT RESULT IN A DEVIVCE BAN FROM pulse.eco IF USED LIVE
+#define DEBUG_PROFILE 1
 
 #ifdef DEBUG_PROFILE
   #define NUM_MEASURE_SESSIONS 20
@@ -60,8 +64,8 @@ TheThingsNetwork ttn(loraSerial, debugSerial, freqPlan, SF);
 #endif
 
 //SDS011 Sensor Pins
-#define SDS_RX_PIN 8
-#define SDS_TX_PIN 5
+#define SDS_TX_PIN 8
+#define SDS_RX_PIN 5
 
 //BME Sensor init
 #ifdef USE_BME680
@@ -75,7 +79,7 @@ TheThingsNetwork ttn(loraSerial, debugSerial, freqPlan, SF);
 #define NOISE_MEASURE_PIN A0
 #define NUM_NOISE_SAMPLES 1000
 
-SoftwareSerial sdsSerial(SDS_RX_PIN, SDS_TX_PIN); // RX, TX
+SoftwareSerial sdsSerial(SDS_TX_PIN, SDS_RX_PIN);
 sds011::Sds011 sdsSensor(sdsSerial);
 
 //Buffers
@@ -86,6 +90,8 @@ char buffer[256];
 boolean isOkSetup = false;
 bool hasBME680 = false;
 bool hasBME280 = false;
+
+byte valuesMask = 0;
 
 void setup(void)
 {
@@ -266,35 +272,71 @@ void loop() {
       }
 
       int noise = ((long)noiseTotal / loopCycleCount) / 4; // mapped to 0-255
-      
+
+      bool pm10SensorOK = true;
       sdsSerial.listen();
       sdsSensor.set_sleep(false);
       sdsSensor.set_mode(sds011::QUERY);
       //wait just enough for it to get back on its senses
       delay(15000);
-      sdsSensor.query_data_auto(&pm25, &pm10, 10);
+      pm10SensorOK = sdsSensor.query_data_auto(&pm25, &pm10, 10);
       delay(100);
       sdsSensor.set_sleep(true);
 
+      if (!pm10SensorOK) {
+        SH_DEBUG_PRINT("Failed to verify PM10 data: ");
+        SH_DEBUG_PRINT("pm25: ");
+        SH_DEBUG_PRINT_DEC(pm25, DEC);
+        SH_DEBUG_PRINT(", pm10: ");
+        SH_DEBUG_PRINT_DEC(pm10, DEC);
+        SH_DEBUG_PRINTLN(".");
+      }
+
   
-      SH_DEBUG_PRINT("pm25: ");
-      SH_DEBUG_PRINT_DEC(pm25, DEC);
-      SH_DEBUG_PRINT("ug/m3, pm10: ");
-      SH_DEBUG_PRINT_DEC(pm10, DEC);
-      SH_DEBUG_PRINT("ug/m3, noise: ");
-      SH_DEBUG_PRINT_DEC(noise, DEC);
-      SH_DEBUG_PRINT("units, pressure: ");
-      SH_DEBUG_PRINT_DEC(pressure, DEC);
-      SH_DEBUG_PRINT("hpa, temp: ");
-      SH_DEBUG_PRINT_DEC(temp, DEC);
-      SH_DEBUG_PRINT(", hum: ");
-      SH_DEBUG_PRINTLN_DEC(humidity, DEC);
-    
+      if (pm10SensorOK) {
+        SH_DEBUG_PRINT("pm25: ");
+        SH_DEBUG_PRINT_DEC(pm25, DEC);
+        SH_DEBUG_PRINT(", pm10: ");
+        SH_DEBUG_PRINT_DEC(pm10, DEC);
+      }
+      if (noise > 10) {
+        SH_DEBUG_PRINT(", noise: ");
+        SH_DEBUG_PRINT_DEC(noise, DEC);
+      }
+      if (hasBME280 || hasBME680) {
+        SH_DEBUG_PRINT(", temp: ");
+        SH_DEBUG_PRINT_DEC(temp, DEC);
+        SH_DEBUG_PRINT(", hum: ");
+        SH_DEBUG_PRINT_DEC(humidity, DEC); 
+        SH_DEBUG_PRINT(", pres: ");
+        SH_DEBUG_PRINT_DEC(pressure, DEC);
+      }
+      if (hasBME680) {
+        SH_DEBUG_PRINT(", gasresistance: ");
+        SH_DEBUG_PRINT_DEC(gasResistance, DEC); 
+      }
+      SH_DEBUG_PRINTLN("");
       int hextemp = min(max(temp + 127, 0), 255);
       int hexhum = min(max(humidity, 0), 255);
+
+      valuesMask = 0;
+      if (pm10SensorOK) {
+        valuesMask |= (byte)1;
+      }
+      if (noise > 10) {
+        valuesMask |= (byte)2;
+      }
+      if (hasBME280 || hasBME680) {
+        valuesMask |= (byte)4;
+      }
+      if (hasBME680) {
+        //disabled for now
+        //valuesMask |= (byte)8;
+      }
     
     //    dataframe
     //- 1 byte: version
+    //  1 byte, to add: bitmask on values: pm10, noise, temp/hum/pres, gasres (lsb to msb)
     //- 1 byte: temperature (offsetted 127)
     //- 1 byte: humidity
     //- 1 byte: noise (scaled from 0 to 255)
@@ -302,7 +344,8 @@ void loop() {
     //- 2 bytes: pm25
     //- 2 bytes pressure
         
-      packet[0]=1; //version to be changed to something else
+      packet[0]=4; //version to be changed to something else
+      packet[1]=valuesMask;
       //couple of versions shold be used, bitmask sort of present values
       //sds
       //temp/hum/pres
@@ -310,31 +353,30 @@ void loop() {
       //noise
       //maybe the first byte to have a different version number
       //and a second one to be a mask of the used values.
-      packet[1]=(byte)hextemp;
-      packet[2]=(byte)hexhum;
-      packet[3]=(byte)noise; //noise
-      packet[4]=(byte)(pm10 / 256);
-      packet[5]=(byte)(pm10 % 256);
-      packet[6]=(byte)(pm25 / 256);
-      packet[7]=(byte)(pm25 % 256);
-      packet[8]=(byte)(pressure / 256);
-      packet[9]=(byte)(pressure % 256);
+      packet[2]=(byte)hextemp;
+      packet[3]=(byte)hexhum;
+      packet[4]=(byte)noise; //noise
+      packet[5]=(byte)(pm10 / 256);
+      packet[6]=(byte)(pm10 % 256);
+      packet[7]=(byte)(pm25 / 256);
+      packet[8]=(byte)(pm25 % 256);
+      packet[9]=(byte)(pressure / 256);
+      packet[10]=(byte)(pressure % 256);
 
+      digitalWrite(LED_BUILTIN, HIGH);
+      SH_DEBUG_PRINTLN("TXing: ");
+      for(int i = 0; i < 11; i++) {
+        sprintf(hexbuffer, "%02x", (int)packet[i]);
+        SH_DEBUG_PRINT(hexbuffer);
+        SH_DEBUG_PRINT(" ");
+      }
+      SH_DEBUG_PRINTLN("");
       #ifndef NO_CONNECTION_PROFILE
-        digitalWrite(LED_BUILTIN, HIGH);
-        SH_DEBUG_PRINTLN("TXing: ");
-        for(int i=0; i<10; i++) {
-          sprintf(hexbuffer, "%02x", (int)packet[i]);
-          SH_DEBUG_PRINT(hexbuffer);
-          SH_DEBUG_PRINT(" ");
-        }
-        SH_DEBUG_PRINTLN("");
-
         // Send it off
         ttn.sendBytes(packet, sizeof(packet));
-        
-        digitalWrite(LED_BUILTIN, LOW);
       #endif
+      digitalWrite(LED_BUILTIN, LOW);
+      
 
       //reset
       noiseTotal = 0;
@@ -379,5 +421,3 @@ short median(short sorted[],int m) //calculate the median
     return (sorted[(m/2)-1]+sorted[m/2])/2; //If the number of data points is even, return avg of the middle two numbers.
   }
 }
-
-
