@@ -174,7 +174,7 @@ void setup(void)
     digitalWrite(LED_BUILTIN, LOW);
 }
 
-byte packet[10];
+byte packet[11];
 char hexbuffer[3];
 
 int loopCycleCount = 0;
