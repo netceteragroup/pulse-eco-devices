@@ -2,13 +2,13 @@
 
 ## Pieces
 
-The staring idea of this 3D printed box is to have one components holder element which slides into an enclosure. Therefore, in this folder you can find two files that you need to print:
+The starting idea of this 3D printed box is to have a components holder element which slides into an enclosure. Therefore, in this folder you can find two files that you need to print:
 - components_plate.stl - the base where all the components will be mounted and secured
 - box.stl - the enclosure in which the components_plate slides into
 
 ## Printing settings
 
-For best outcome, these are the recommended printing settings (might need to be tuned in order to fit your printer more nicely)
+For the best outcome, these are the recommended printing settings (might need to be tuned in order to fit your 3d printer more nicely)
 - Layer height: 0.1mm
 - Wall width: 0.8mm
 - Print speed: 50mm/s with 90mm/s travel
@@ -32,8 +32,8 @@ Next, connect the SDS011 sensor and place it on top of the components plate, res
 
 If the sensor wiggles, secure it with hot glue as well. 
 
-Be careful with managing the cables in the process. The SDS sensor can press on the board and the cables and might even damage either them or itself. When done, slide the whole components set into the enclosure:
+Be careful with managing the cables in the process. The SDS sensor can press on the board and the cables, and might damage either them or itself. When done, slide the whole components set into the enclosure:
 
 ![Box](box.jpg)
 
-Usually, the box and the front plate should tight fight. However, in some ocassions, a bit of glue might be necessary to secure it completely.
+Usually, the box and the front plate should tight fit. However, in some occasions, a bit of glue might be necessary to secure it completely.
