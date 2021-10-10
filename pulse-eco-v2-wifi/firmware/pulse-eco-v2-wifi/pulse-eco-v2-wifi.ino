@@ -67,9 +67,13 @@ bool hasBME280 = false;
 IPAddress apIP(192, 168, 1, 1);
 const char *ssidDefault = "PulseEcoSensor";
 
-const char* host = "pulse.eco";
-const char* fingerprint = "2F 83 76 75 26 FA F2 17 CA 83 90 AC CF 34 05 4F 37 65 F5 FB";
 
+// Uncomment this line if you want to use stronger host verification
+// It adds a tad more security, but you'll need to reflash your device more often
+//#define WITH_HOST_VERIFICATION 1
+
+const char* host = "pulse.eco";
+const char* fingerprint = "4E 9F 97 B8 6C 8F 70 C0 2A C9 6A 83 6D 5F 3B C7 81 C5 D6 3D";
 void discoverAndSetStatus() {
   String data = "";
   bool validData = false;
@@ -466,17 +470,21 @@ void loop() {
           ESP.restart();
           return;
         }
-  
-        if (client.verify(fingerprint, host)) {
-          SH_DEBUG_PRINTLN("certificate matches");
-        } else {
-          SH_DEBUG_PRINTLN("certificate doesn't match! Restarting");
-          ESP.restart();
-        }
-  
+        String userAgent = "WIFI_SENSOR_V2_1";
+        #ifdef WITH_HOST_VERIFICATION
+          userAgent = userAgent + "_V";
+          if (client.verify(fingerprint, host)) {
+            SH_DEBUG_PRINTLN("certificate matches");
+          } else {
+            SH_DEBUG_PRINTLN("certificate doesn't match! Restarting");
+            ESP.restart();
+          }
+        #else
+          userAgent = userAgent + "_U";
+        #endif
         client.print(String("GET ") + url + " HTTP/1.1\r\n" +
                  "Host: " + host + "\r\n" +
-                 "User-Agent: WIFI_SENSOR_V2\r\n" +
+                 "User-Agent: " + userAgent + "\r\n" +
                  "Connection: close\r\n\r\n");
   
         SH_DEBUG_PRINTLN("HTTPS request sent");
@@ -680,5 +688,3 @@ short median(short sorted[],int m) //calculate the median
     return (sorted[(m/2)-1]+sorted[m/2])/2; //If the number of data points is even, return avg of the middle two numbers.
   }
 }
-
-
