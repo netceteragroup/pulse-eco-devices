@@ -41,10 +41,11 @@ TheThingsNetwork ttn(loraSerial, debugSerial, freqPlan, SF);
 
 
 // Uncomment if you want to test the device without LoRaWAN connectivity
-#define NO_CONNECTION_PROFILE 1
+//#define NO_CONNECTION_PROFILE 1
+
 // Uncomment if you want to enable debug lines printing in console and more 2 minutes interval
 // USE WITH CARE SINCE IT MIGHT RESULT IN A DEVIVCE BAN FROM pulse.eco IF USED LIVE
-#define DEBUG_PROFILE 1
+//#define DEBUG_PROFILE 1
 
 #ifdef DEBUG_PROFILE
   #define NUM_MEASURE_SESSIONS 20
