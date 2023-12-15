@@ -9,16 +9,24 @@
 #define LW_APPSKEY { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }
 #define LW_DATARATE DR_SF7
 
+#define WL_MAC_ADDR_LENGTH 6
+
 // Uncomment if you want to test the device without LoRaWAN connectivity
 //#define NO_CONNECTION_PROFILE 1
 // Uncomment if you want to enable debug lines printing in console and more 2 minutes interval
 // USE WITH CARE SINCE IT MIGHT RESULT IN A DEVIVCE BAN FROM pulse.eco IF USED LIVE
 #define DEBUG_PROFILE 1
 
+#include <EEPROM.h>
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <WebServer.h>
+#include <ESPmDNS.h>
+
 #include <lmic.h>
 #include <hal/hal.h>
 #include <SPI.h>
-
+ 
 #include <SoftwareSerial.h>
 
 #include <bme680.h>
@@ -31,13 +39,15 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
+#include "configurePage.h"
+
 #define debugSerial Serial
 
 #ifdef DEBUG_PROFILE
 //  #define NUM_MEASURE_SESSIONS 20
 //  #define CYCLE_DELAY 2000
   #define NUM_MEASURE_SESSIONS 40
-  #define CYCLE_DELAY 10000
+  #define CYCLE_DELAY 2000
   #define SH_DEBUG_PRINTLN(a) debugSerial.println(a)
   #define SH_DEBUG_PRINT(a) debugSerial.print(a)
   #define SH_DEBUG_PRINT_DEC(a,b) debugSerial.print(a,b)
@@ -56,9 +66,16 @@
 #define SDS_RX_PIN 23
 #define SDS_TX_PIN 22
 
-//OLED pins
-#define OLED_SDA 4
-#define OLED_SCL 15 
+////OLED pins for v1
+//#define OLED_SDA 4
+//#define OLED_SCL 15 
+//#define OLED_RST 16
+//#define SCREEN_WIDTH 128 // OLED display width, in pixels
+//#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+
+//OLED pins for v1.3
+#define OLED_SDA 21
+#define OLED_SCL 22 
 #define OLED_RST 16
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
@@ -76,10 +93,25 @@ Adafruit_BME280 bme280; // I2C
 SoftwareSerial sdsSerial(SDS_TX_PIN, SDS_RX_PIN); 
 sds011::Sds011 sdsSensor(sdsSerial);
 
+WebServer server(80);
+
+//EEPROM Data
+const int EEPROM_SIZE = 256;
+String wifiMode="";
+String devaddr="";
+String nwksKey="";
+String appsKey="";
+String wifi="";
+String ssid="";
+String password="";
+String passcode="";
+
+
 static uint8_t mydata[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0xA,};
 byte packet[11];
 
 //Flags
+int status = -1;
 boolean isOkSetup = false;
 bool hasBME680 = false;
 bool hasBME280 = false;
@@ -88,6 +120,10 @@ bool pm10SensorOK = true;
 bool hasScreen = true;
 
 byte valuesMask = 0;
+
+// TCP + TLS
+IPAddress apIP(192, 168, 1, 1);
+const char *ssidDefault = "PulseEcoSensor";
 
 //static const PROGMEM u1_t NWKSKEY[16] = LW_NWKSKEY;
 //static const u1_t PROGMEM APPSKEY[16] = LW_APPSKEY;
@@ -125,6 +161,84 @@ const lmic_pinmap lmic_pins = {
 
 
 
+void discoverAndSetStatus() {
+  String data = "";
+  bool validData = false;
+
+  char readValue = (char)EEPROM.read(0);
+  if ((char)readValue == '[') {
+    //we're good
+    //read till you get to the end
+    SH_DEBUG_PRINTLN("Found data in EEPROM");
+    int nextIndex = 1;
+    while (nextIndex < EEPROM_SIZE && (readValue = (char) EEPROM.read(nextIndex++)) != ']') {
+      data += readValue;
+    }
+  }
+
+  if ((char)readValue == ']') {
+    validData = true;
+    #ifdef DEBUG_PROFILE
+    SH_DEBUG_PRINTLN("Read data:");
+    SH_DEBUG_PRINTLN(data);
+    #endif
+  } else {
+    SH_DEBUG_PRINTLN("No data found in EEPROM");
+  }
+
+  String readFields[6];
+  if (validData) {
+    //Try to properly split the string
+    //String format: wifimode:SSID:password:devaddr:nwkskey:appskey
+    
+    int count = splitCommand(&data, ':', readFields, 6);
+    if (count != 6) {
+      validData = false;
+      SH_DEBUG_PRINTLN("Incorrect data format.");
+    } else {
+      #ifdef DEBUG_PROFILE
+      SH_DEBUG_PRINTLN("Read data parts:");
+      SH_DEBUG_PRINTLN(readFields[0]);
+      SH_DEBUG_PRINTLN(readFields[1]);
+      SH_DEBUG_PRINTLN(readFields[2]);
+      SH_DEBUG_PRINTLN(readFields[3]);
+      SH_DEBUG_PRINTLN(readFields[4]);
+      SH_DEBUG_PRINTLN(readFields[5]); 
+      #endif
+      wifiMode = readFields[0];
+      ssid = readFields[1];
+      password = readFields[2];
+      devaddr = readFields[3];
+      nwksKey = readFields[4];
+      appsKey = readFields[5];
+      validData = true;
+    }
+  }
+
+  if (ssid == NULL || ssid.equals("")) {
+    SH_DEBUG_PRINTLN("No WiFi settings found.");
+    //no network set yet
+    validData = false;
+  }
+
+  if (!validData) {
+    //It's still not connected to anything
+    //broadcast net and display form
+    SH_DEBUG_PRINTLN("Setting status code to 0: dipslay config options.");
+    //digitalWrite(STATUS_LED_PIN, LOW);
+    status = 0;
+    
+  } else {
+    
+    
+    status = 1;
+    //should be rewriten based on the wifi mode. either set up AP mode or client with MDNS
+    //digitalWrite(STATUS_LED_PIN, HIGH);
+    SH_DEBUG_PRINTLN("Initially setting status to 1: try to connect to the network.");
+
+  }
+}
+
 
 void setup() {
     pinMode(13, OUTPUT);
@@ -138,6 +252,7 @@ void setup() {
     // For Pinoccio Scout boards
     pinMode(VCC_ENABLE, OUTPUT);
     digitalWrite(VCC_ENABLE, HIGH);
+    SH_DEBUG_PRINTLN(F("VCC_ENABLE ON"));
     delay(1000);
     #endif
 
@@ -148,27 +263,24 @@ void setup() {
     digitalWrite(OLED_RST, HIGH);
     
     //initialize OLED
-    Wire.begin(OLED_SDA, OLED_SCL);
-    if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3c, false, false)) { // Address 0x3C for 128x32
-      SH_DEBUG_PRINTLN(F("SSD1306 allocation failed"));
+    SH_DEBUG_PRINTLN(F("Initializing Wire"));
+    if (!Wire.begin(OLED_SDA, OLED_SCL)) {
+      SH_DEBUG_PRINTLN(F("Wire allocation failed"));
       hasScreen = false;
+    } else {
+      SH_DEBUG_PRINTLN(F("Initializing Display"));
+      if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3c, false, false)) { // Address 0x3C for 128x32
+        SH_DEBUG_PRINTLN(F("SSD1306 allocation failed"));
+        hasScreen = false;
+      }
     }
 
     displayInitScreen(false);
-
-    #ifndef NO_CONNECTION_PROFILE
-      doLoRaWAN();
-      isOkSetup = true;
-      SH_DEBUG_PRINTLN("Joined network, waiting for modem...");
-    #else
-      isOkSetup = true;
-    #endif
-
     SH_DEBUG_PRINTLN("Init SDS sensor.");
     //Init the pm SENSOR
     sdsSerial.begin(9600);
     SH_DEBUG_PRINTLN("Waiting SDS sensor to boot.");
-    delayWithDecency(2000);
+    delay(2000);
     SH_DEBUG_PRINTLN("Putting SDS in sleep.");
     sdsSensor.set_sleep(true);
 
@@ -206,6 +318,123 @@ void setup() {
     } else if (hasBME280) {
       SH_DEBUG_PRINTLN("Found BME280");
     }
+
+    //should invoke and check status here.
+    EEPROM.begin(EEPROM_SIZE);
+
+    #ifndef NO_CONNECTION_PROFILE
+      discoverAndSetStatus();
+      // statuses: 0 -> initial AP; 1-> active mode client; 2 -> active mode AP
+
+      if (status == 0) {
+          //Input params
+          //Start up the web server 
+          SH_DEBUG_PRINTLN("Setting up configuration web server");
+          WiFi.disconnect();
+          WiFi.mode(WIFI_AP);
+          
+          uint8_t mac[WL_MAC_ADDR_LENGTH];
+          WiFi.softAPmacAddress(mac);
+          String macID = String(mac[WL_MAC_ADDR_LENGTH - 2], HEX) +
+                         String(mac[WL_MAC_ADDR_LENGTH - 1], HEX);
+          macID.toUpperCase();
+          String AP_NameString = "PulseEcoSensor-" + macID;
+        
+          char AP_NameChar[AP_NameString.length() + 1];
+          memset(AP_NameChar, 0, AP_NameString.length() + 1);
+        
+          for (int i=0; i<AP_NameString.length(); i++)
+            AP_NameChar[i] = AP_NameString.charAt(i);
+          
+          WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
+          WiFi.softAP(AP_NameChar);
+          delay(500);
+          server.on("/", HTTP_GET, handleRootGet);      
+          server.on("/post", HTTP_POST, handleRootPost);
+          server.onNotFound(handleRootGet);
+          server.begin();
+          SH_DEBUG_PRINTLN("HTTP server started");
+          SH_DEBUG_PRINT("AP IP address: ");
+          SH_DEBUG_PRINTLN(apIP);
+          
+      }
+
+      if (status == 1) {
+        //Try to connect to the network
+        SH_DEBUG_PRINTLN("Trying to connect...");
+        char ssidBuf[ssid.length()+1];
+        ssid.toCharArray(ssidBuf,ssid.length()+1);
+        char passBuf[password.length()+1];
+        password.toCharArray(passBuf,password.length()+1);
+        WiFi.disconnect();
+        WiFi.mode(WIFI_STA);
+        WiFi.begin ( ssidBuf, passBuf );
+        SH_DEBUG_PRINT("SSID: ");
+        SH_DEBUG_PRINTLN(ssidBuf);
+        #ifdef DEBUG_PROFILE
+          SH_DEBUG_PRINT("Password: ");
+          SH_DEBUG_PRINTLN(passBuf);
+        #endif
+        
+        // Wait for connection
+        boolean toggleLed = false;
+        int numTries = 200;
+        while (WiFi.status() != WL_CONNECTED && --numTries > 0) {
+          delay (250);
+          SH_DEBUG_PRINT(".");
+          toggleLed = !toggleLed;
+          //digitalWrite(STATUS_LED_PIN, toggleLed); 
+        }
+    
+        if (WiFi.status() != WL_CONNECTED) {
+          SH_DEBUG_PRINT("Undable to connect to the network: ");
+          SH_DEBUG_PRINTLN( ssid );
+          status = 0; //should be reconsidered what this means. LoRaWAN should be OK but wifi setup fails. can potentailly lead to configuration deadlock...
+          //should start working in AP mode technically, but with different SSID and same password. retry after couple of sessions or so.
+          //same logic should probably happen if it get's disconnected for some reason, so technically this should happen in a back channel.
+          
+          //digitalWrite(STATUS_LED_PIN, LOW);
+        } else {
+          //Connected to the network
+          SH_DEBUG_PRINT("Connected to:");
+          SH_DEBUG_PRINTLN( ssid );
+          SH_DEBUG_PRINT( "IP address: " );
+          SH_DEBUG_PRINTLN( WiFi.localIP() );
+          
+          //Set up MDNS
+          if (!MDNS.begin("pulse-eco")) {
+            SH_DEBUG_PRINTLN("Error setting up MDNS responder!");
+          }
+          MDNS.addService("http", "tcp", 80);
+  
+          //Set up status respond
+//          server.on("/", HTTP_GET, handleStatusGet);
+//          server.on("/check", HTTP_GET, handleStatusCheck);
+//          server.on("/values", HTTP_GET, handleStatusValues);
+//          server.on("/valuesJson", HTTP_GET, handleStatusValuesJSON);
+//          server.on("/reboot", HTTP_POST, handleReboot);
+//          server.on("/reset", HTTP_GET, handleResetRequest);
+//          server.on("/reset", HTTP_POST, handleResetResult);
+//          server.onNotFound(handleStatusGet);
+//          server.begin();
+  
+          
+          //digitalWrite(STATUS_LED_PIN, HIGH);
+        }
+
+        doLoRaWAN();
+        isOkSetup = true;
+        SH_DEBUG_PRINTLN("Joined network, waiting for modem...");
+      }
+
+      
+      
+    
+      
+    #else
+      isOkSetup = true;
+      status = 1;
+    #endif
 
     //wait a bit before your start
     delayWithDecency(2000);
@@ -431,15 +660,77 @@ void loop() {
     delayWithDecency(100);
   }
   #ifndef NO_CONNECTION_PROFILE
-  os_runloop_once();
+  if (status == 1) {
+    os_runloop_once();
+  }
   #endif
 }
+
+//Web server params below
+void handleRootGet() {
+  String output = FPSTR(CONFIGURE_page);
+  server.send(200, "text/html", output);
+}
+
+void handleRootPost() {
+  
+  SH_DEBUG_PRINT("Number of args:");
+  SH_DEBUG_PRINTLN(server.args());
+  for (int i=0; i<server.args(); i++) {
+    SH_DEBUG_PRINT("Argument no.");
+    SH_DEBUG_PRINT_DEC(i, DEC);
+    SH_DEBUG_PRINT(": name: ");
+    SH_DEBUG_PRINT(server.argName(i));
+    SH_DEBUG_PRINT(" value: ");
+    SH_DEBUG_PRINTLN(server.arg(i));
+  }
+
+  if (server.args() == 6 
+    && server.argName(0).equals("deviceId")
+    && server.argName(1).equals("ssid")
+    && server.argName(2).equals("password")) {
+    //it's ok
+    
+    String data = "[" + server.arg(0) + ":" + server.arg(1) + ":" + server.arg(2) + "]";
+    data.replace("+"," ");
+
+    if (data.length() < EEPROM_SIZE) {
+      server.send(200, "text/html", "<h1>The device will restart now.</h1>");
+      //It's ok
+
+      SH_DEBUG_PRINTLN("Storing data in EEPROM:");
+      #ifdef DEBUG_PROFILE
+        SH_DEBUG_PRINTLN(data);
+      #endif
+      for (int i=0; i < data.length(); i++) {
+        EEPROM.write(i, (byte)data[i]);
+      }
+      EEPROM.commit();
+      delay(500);
+
+      SH_DEBUG_PRINTLN("Stored to EEPROM. Restarting.");
+      ESP.restart();
+      
+    } else {
+      server.send(400, "text/html", "<h1>The parameter string is too long.</h1>");
+    }
+    
+  } else {
+    server.send(400, "text/html", "<h1>Incorrect input. Please try again.</h1>");
+  }
+  
+}
+
+
+
 
 void delayWithDecency(int units) {
   for (int i=0; i<units; i+=10) {
     delay(10);
     #ifndef NO_CONNECTION_PROFILE
-    os_runloop_once();
+    if (status == 1) {
+      os_runloop_once();
+    }
     #endif
   }
 }
@@ -704,3 +995,42 @@ void do_send(osjob_t* j){
     }
     // Next TX is scheduled after TX_COMPLETE event.
 }
+
+int splitCommand(String* text, char splitChar, String returnValue[], int maxLen) {
+  int splitCount = countSplitCharacters(text, splitChar);
+  SH_DEBUG_PRINT("Split count: ");
+  SH_DEBUG_PRINTLN_DEC(splitCount, DEC);
+  if (splitCount + 1 > maxLen) {
+    return -1;
+  }
+
+  int index = -1;
+  int index2;
+
+  for(int i = 0; i <= splitCount; i++) {
+//    index = text->indexOf(splitChar, index + 1);
+    index2 = text->indexOf(splitChar, index + 1);
+
+    if(index2 < 0) index2 = text->length();
+    returnValue[i] = text->substring(index+1, index2);
+    index = index2;
+  }
+
+  return splitCount + 1;
+}
+
+int countSplitCharacters(String* text, char splitChar) {
+ int returnValue = 0;
+ int index = -1;
+
+ while (true) {
+   index = text->indexOf(splitChar, index + 1);
+
+   if(index > -1) {
+    returnValue+=1;
+   } else {
+    break;
+   }
+ }
+
+ return returnValue;
