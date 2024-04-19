@@ -1,3 +1,4 @@
+const char configureLora[] PROGMEM = R"=====(
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -40,7 +41,7 @@
   e.preventDefault();
   bset('disabled', 'disabled');
   bset('value', 'Verifying, please wait...');
-  setTimeout(checkConnectivity, checkInterval); 	    
+  setTimeout(checkConnectivity, checkInterval);       
  });
 
  var connectivityCheck = 2;
@@ -61,7 +62,7 @@
   xhr.ontimeout = (e) => {
    setTimeout(checkConnectivity, checkInterval);
   };
-  xhr.send(null);	
+  xhr.send(null); 
  }
 </script>
 </head>
@@ -69,7 +70,7 @@
  <h1 style='text-align: center;'>pulse.eco LoRaWAN v3 TTGO</h1>
  <h1 style='text-align: center;'>DEVICE CONFIG</h1>
  <br/>
- <form method='post' action='/post'>
+ <form method='post' action='/loraWanConfig'>
   <p>WI-FI INFO</p>
   <div class='line'></div>
   <div>Wi-Fi mode:</div>
@@ -94,3 +95,4 @@
  </form>
 </body>
 </html>
+)=====";

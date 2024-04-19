@@ -11,7 +11,7 @@
 
 #define WL_MAC_ADDR_LENGTH 6
 
-// Uncomment if you want to test the device without LoRaWAN connectivity
+// Uncomment if you want to test the device with LoRaWAN connectivity
 //#define NO_CONNECTION_PROFILE 1
 // Uncomment if you want to enable debug lines printing in console and more 2 minutes interval
 // USE WITH CARE SINCE IT MIGHT RESULT IN A DEVIVCE BAN FROM pulse.eco IF USED LIVE
@@ -39,7 +39,9 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-#include "configurePage.h"
+#include "homepage.h"
+#include "configureLora.h"
+#include "configureWifi.h"
 
 #define debugSerial Serial
 
@@ -349,9 +351,11 @@ void setup() {
           WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
           WiFi.softAP(AP_NameChar);
           delay(500);
-          server.on("/", HTTP_GET, handleRootGet);      
-          server.on("/post", HTTP_POST, handleRootPost);
-          server.onNotFound(handleRootGet);
+          server.on("/", HTTP_GET, handleGetHomepage); 
+          server.on("/wifi", HTTP_GET, handleGetWifi);      
+          server.on("/lorawan", HTTP_GET, handleGetLorawan);           
+          server.on("/wifiConfig", HTTP_POST, handlePostWifi);
+          server.onNotFound(handleGetHomepage);
           server.begin();
           SH_DEBUG_PRINTLN("HTTP server started");
           SH_DEBUG_PRINT("AP IP address: ");
@@ -456,6 +460,7 @@ int gasResistance = 0;
 bool inSending = false;
 
 void loop() {
+    server.handleClient();
 
     if (isOkSetup && !inSending) {
     //wait
@@ -667,12 +672,22 @@ void loop() {
 }
 
 //Web server params below
-void handleRootGet() {
-  String output = FPSTR(CONFIGURE_page);
+void handleGetHomepage() {
+  String output = FPSTR(homepage);
   server.send(200, "text/html", output);
 }
 
-void handleRootPost() {
+void handleGetWifi() {
+  String output = FPSTR(configureWifi);
+  server.send(200, "text/html", output);
+}
+
+void handleGetLorawan() {
+  String output = FPSTR(configureLora);
+  server.send(200, "text/html", output);
+}
+
+void handlePostWifi() {
   
   SH_DEBUG_PRINT("Number of args:");
   SH_DEBUG_PRINTLN(server.args());
@@ -1034,3 +1049,4 @@ int countSplitCharacters(String* text, char splitChar) {
  }
 
  return returnValue;
+}
