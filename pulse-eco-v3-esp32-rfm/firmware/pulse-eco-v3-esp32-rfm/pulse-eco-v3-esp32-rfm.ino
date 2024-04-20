@@ -115,7 +115,6 @@ byte packet[11];
 
 //Flags
 int status = -1;
-boolean isOkSetup = false;
 bool hasBME680 = false;
 bool hasBME280 = false;
 bool pm10SensorOK = true;
@@ -360,7 +359,6 @@ void setup() {
       //same logic should probably happen if it get's disconnected for some reason, so technically this should happen in a back channel.
 
       //digitalWrite(STATUS_LED_PIN, LOW);
-      WiFi.mode(WIFI_AP);
     
     } else {
       //Connected to the network
@@ -389,7 +387,6 @@ void setup() {
 
       //digitalWrite(STATUS_LED_PIN, HIGH);
       SH_DEBUG_PRINTLN("Joined network, waiting for modem...");
-      isOkSetup = true;
     }
     //    doLoRaWAN();
   }
@@ -431,7 +428,7 @@ void setup() {
   }
 
 #else
-  isOkSetup = true;
+   = true;
   status = 1;
 #endif
 
@@ -439,6 +436,9 @@ void setup() {
   delayWithDecency(2000);
   digitalWrite(13, LOW);
   displayInitScreen(true);
+
+  SH_DEBUG_PRINT("Status");
+  SH_DEBUG_PRINT(status);
 }
 
 char hexbuffer[3];
@@ -457,14 +457,15 @@ int noConnectionLoopCount = 0;
 
 void loop() {
 
-  //  if (isOkSetup && !inSending)
-  if ( status == 1 ) {
-    
+  //  if ( && !inSending)
+  if ( status == 1 ) {    
     //wait
     delayWithDecency(CYCLE_DELAY);
 
     //increase counter
     loopCycleCount++;
+
+            SH_DEBUG_PRINT("Hi from loop status 1 0");
 
     //measure noise
     int noiseSessionMax = 0;
@@ -488,6 +489,9 @@ void loop() {
       currentSessionNoise = 0;
       //something bad has happened, but rather send a 0.
     }
+
+                SH_DEBUG_PRINT("Hi from loop status 1 1");
+
 
 
 #ifdef NO_CONNECTION_PROFILE
@@ -611,6 +615,7 @@ void loop() {
       //- 2 bytes: pm10
       //- 2 bytes: pm25
       //- 2 bytes pressure
+                SH_DEBUG_PRINT("Hi from loop status 1 3");
 
       packet[0] = 4; //version to be changed to something else
       packet[1] = valuesMask;
@@ -630,6 +635,8 @@ void loop() {
       packet[8] = (byte)(pm25 % 256);
       packet[9] = (byte)(pressure / 256);
       packet[10] = (byte)(pressure % 256);
+
+                      SH_DEBUG_PRINT("Hi from loop status 1 4");
 
       digitalWrite(13, HIGH);
       SH_DEBUG_PRINTLN("TXing: ");
@@ -673,11 +680,11 @@ void loop() {
       ESP.restart();
     }
   }
-#ifndef NO_CONNECTION_PROFILE
-  if (status == 1) {
-    os_runloop_once();
-  }
-#endif
+//#ifndef NO_CONNECTION_PROFILE
+//  if (status == 1) {
+//    os_runloop_once();
+//  }
+//#endif
 }
 
 //Web server params below
