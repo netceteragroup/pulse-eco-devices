@@ -541,8 +541,6 @@ void loop() {
       }
 
       int noise = ((long)noiseTotal / loopCycleCount) / 4; // mapped to 0-255
-                SH_DEBUG_PRINTLN("noise padna xD");
-
 
       sdsSerial.listen();
       sdsSensor.set_sleep(false);
