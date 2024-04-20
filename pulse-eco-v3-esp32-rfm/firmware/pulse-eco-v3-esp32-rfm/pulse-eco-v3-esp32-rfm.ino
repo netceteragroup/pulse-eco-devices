@@ -355,6 +355,7 @@ void setup() {
           server.on("/wifi", HTTP_GET, handleGetWifi);      
           server.on("/lorawan", HTTP_GET, handleGetLorawan);           
           server.on("/wifiConfig", HTTP_POST, handlePostWifi);
+          server.on("/loraWanConfig", HTTP_POST, handlePostLorawan);
           server.onNotFound(handleGetHomepage);
           server.begin();
           SH_DEBUG_PRINTLN("HTTP server started");
@@ -700,7 +701,7 @@ void handlePostWifi() {
     SH_DEBUG_PRINTLN(server.arg(i));
   }
 
-  if (server.args() == 6 
+  if (server.args() == 3 
     && server.argName(0).equals("deviceId")
     && server.argName(1).equals("ssid")
     && server.argName(2).equals("password")) {
@@ -736,8 +737,57 @@ void handlePostWifi() {
   
 }
 
+void handlePostLorawan() {
+  
+  SH_DEBUG_PRINT("Number of args:");
+  SH_DEBUG_PRINTLN(server.args());
+  for (int i=0; i<server.args(); i++) {
+    SH_DEBUG_PRINT("Argument no.");
+    SH_DEBUG_PRINT_DEC(i, DEC);
+    SH_DEBUG_PRINT(": name: ");
+    SH_DEBUG_PRINT(server.argName(i));
+    SH_DEBUG_PRINT(" value: ");
+    SH_DEBUG_PRINTLN(server.arg(i));
+  }
 
+  if (server.args() == 6 
+    && server.argName(0).equals("wifiMode")
+    && server.argName(1).equals("ssid")
+    && server.argName(2).equals("password")
+    && server.argName(3).equals("devaddr")
+    && server.argName(4).equals("nwksKey")
+    && server.argName(5).equals("appsKey")) {
+    //it's ok
+    
+    String data = "[" + server.arg(0) + ":" + server.arg(1) + ":" + server.arg(2) + "]";
+    data.replace("+"," ");
 
+    if (data.length() < EEPROM_SIZE) {
+      server.send(200, "text/html", "<h1>The device will restart now.</h1>");
+      //It's ok
+
+      SH_DEBUG_PRINTLN("Storing data in EEPROM:");
+      #ifdef DEBUG_PROFILE
+        SH_DEBUG_PRINTLN(data);
+      #endif
+      for (int i=0; i < data.length(); i++) {
+        EEPROM.write(i, (byte)data[i]);
+      }
+      EEPROM.commit();
+      delay(500);
+
+      SH_DEBUG_PRINTLN("Stored to EEPROM. Restarting.");
+      ESP.restart();
+      
+    } else {
+      server.send(400, "text/html", "<h1>The parameter string is too long.</h1>");
+    }
+    
+  } else {
+    server.send(400, "text/html", "<h1>Incorrect input. Please try again.</h1>");
+  }
+  
+}
 
 void delayWithDecency(int units) {
   for (int i=0; i<units; i+=10) {
