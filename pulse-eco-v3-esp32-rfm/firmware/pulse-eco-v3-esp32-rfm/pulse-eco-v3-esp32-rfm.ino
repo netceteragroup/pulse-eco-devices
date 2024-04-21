@@ -12,7 +12,7 @@
 #define WL_MAC_ADDR_LENGTH 6
 
 // Uncomment if you want to test the device with LoRaWAN connectivity
-//#define NO_CONNECTION_PROFILE 1
+#define NO_CONNECTION_PROFILE 1
 // Uncomment if you want to enable debug lines printing in console and more 2 minutes interval
 // USE WITH CARE SINCE IT MIGHT RESULT IN A DEVIVCE BAN FROM pulse.eco IF USED LIVE
 #define DEBUG_PROFILE 1
@@ -35,7 +35,6 @@
 #include <bme680_defs.h>
 #include <Adafruit_BME280.h>
 
-#include "Sds011.h"
 #include <sps30.h>
 
 #include <Adafruit_GFX.h>
@@ -65,11 +64,6 @@
 #define SH_DEBUG_PRINTLN_DEC(a,b)
 #endif
 
-
-//Sharp Dust Sensor Pins
-#define SDS_RX_PIN 23
-#define SDS_TX_PIN 22
-
 ////OLED pins for v1
 //#define OLED_SDA 4
 //#define OLED_SCL 15
@@ -93,9 +87,6 @@ Adafruit_BME280 bme280; // I2C
 //Noise sensor pins
 #define NOISE_MEASURE_PIN 36
 #define NUM_NOISE_SAMPLES 1000
-
-SoftwareSerial sdsSerial(SDS_TX_PIN, SDS_RX_PIN);
-sds011::Sds011 sdsSensor(sdsSerial);
 
 WebServer server(80);
 
@@ -275,17 +266,14 @@ void setup() {
   }
 
   displayInitScreen(false);
-  SH_DEBUG_PRINTLN("Init SDS sensor.");
+  SH_DEBUG_PRINTLN("Init SPS sensor.");
   //Init the pm SENSOR
-  sdsSerial.begin(9600);
   sensirion_i2c_init();
   int16_t ret;
   ret = sps30_start_measurement();
 
-  SH_DEBUG_PRINTLN("Waiting SDS sensor to boot.");
+  SH_DEBUG_PRINTLN("Waiting SPS sensor to boot.");
   delay(2000);
-  SH_DEBUG_PRINTLN("Putting SDS in sleep.");
-  sdsSensor.set_sleep(true);
 
   //Init the temp/hum sensor
   // Set up oversampling and filter initialization
@@ -515,10 +503,6 @@ void loop() {
 
     if (loopCycleCount >= NUM_MEASURE_SESSIONS) {
 
-      struct sps30_measurement m;
-      char serial[SPS30_MAX_SERIAL_LEN];
-      uint16_t data_ready;
-      int16_t ret;
       //done measuring
       //measure dust, temp, hum and send data.
       int countTempHumReadouts = 10;
@@ -551,9 +535,10 @@ void loop() {
 
       int noise = ((long)noiseTotal / loopCycleCount) / 4; // mapped to 0-255
 
-      sdsSerial.listen();
-      sdsSensor.set_sleep(false);
-      sdsSensor.set_mode(sds011::QUERY);
+      struct sps30_measurement m;
+      char serial[SPS30_MAX_SERIAL_LEN];
+      uint16_t data_ready;
+      int16_t ret;
 
       //wait just enough for it to get back on its senses
       delayWithDecency(15000);
@@ -573,9 +558,8 @@ void loop() {
 
       pm10SensorOK = sps30_read_measurement(&m);
       delayWithDecency(100);
-      sdsSensor.set_sleep(true);
-      
-      if (!pm10SensorOK) {
+
+      if (pm10SensorOK != 0) {
         SH_DEBUG_PRINT("Failed to verify PM10 data: ");
         SH_DEBUG_PRINT("pm25: ");
         SH_DEBUG_PRINT_DEC(m.mc_2p5, DEC);
@@ -585,12 +569,11 @@ void loop() {
         SH_DEBUG_PRINTLN(".");
       }
 
-
-      if (pm10SensorOK) {
+      if (pm10SensorOK == 0) {
         SH_DEBUG_PRINT("pm25: ");
-        SH_DEBUG_PRINT_DEC(pm25, DEC);
+        SH_DEBUG_PRINT_DEC(m.mc_2p5, DEC);
         SH_DEBUG_PRINT(", pm10: ");
-        SH_DEBUG_PRINT_DEC(pm10, DEC);
+        SH_DEBUG_PRINT_DEC(m.mc_1p0, DEC);
       }
       if (noise > 10) {
         SH_DEBUG_PRINT(", noise: ");
@@ -640,7 +623,7 @@ void loop() {
       //      packet[0] = 4; //version to be changed to something else
       //      packet[1] = valuesMask;
       //couple of versions shold be used, bitmask sort of present values
-      //sds
+      //sps
       //temp/hum/pres
       //gas
       //noise
@@ -825,11 +808,11 @@ void handlePostLorawan() {
 void delayWithDecency(int units) {
   for (int i = 0; i < units; i += 10) {
     delay(10);
-    #ifndef NO_CONNECTION_PROFILE
-        if (status == 1) {
-          os_runloop_once();
-        }
-    #endif
+    //    #ifndef NO_CONNECTION_PROFILE
+    //        if (status == 1) {
+    //          os_runloop_once();
+    //        }
+    //    #endif
   }
 }
 
