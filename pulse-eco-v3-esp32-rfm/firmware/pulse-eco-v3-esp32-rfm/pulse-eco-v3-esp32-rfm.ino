@@ -11,7 +11,7 @@
 
 #define WL_MAC_ADDR_LENGTH 6
 
-// Uncomment if you want to test the device with LoRaWAN connectivity
+// Uncomment if you want to test the device without LoRaWAN/WiFi connectivity
 #define NO_CONNECTION_PROFILE 1
 // Uncomment if you want to enable debug lines printing in console and more 2 minutes interval
 // USE WITH CARE SINCE IT MIGHT RESULT IN A DEVIVCE BAN FROM pulse.eco IF USED LIVE
