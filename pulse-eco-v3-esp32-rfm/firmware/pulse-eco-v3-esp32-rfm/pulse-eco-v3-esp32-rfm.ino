@@ -29,12 +29,14 @@
 
 #include <SoftwareSerial.h>
 
+
 #include <bme680.h>
 #include <Adafruit_BME680.h>
 #include <bme680_defs.h>
 #include <Adafruit_BME280.h>
 
 #include "Sds011.h"
+#include <sps30.h>
 
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -276,6 +278,10 @@ void setup() {
   SH_DEBUG_PRINTLN("Init SDS sensor.");
   //Init the pm SENSOR
   sdsSerial.begin(9600);
+  sensirion_i2c_init();
+  int16_t ret;
+  ret = sps30_start_measurement();
+
   SH_DEBUG_PRINTLN("Waiting SDS sensor to boot.");
   delay(2000);
   SH_DEBUG_PRINTLN("Putting SDS in sleep.");
@@ -323,7 +329,7 @@ void setup() {
   discoverAndSetStatus();
   // statuses: 0 -> initial AP; 1-> active mode client; 2 -> active mode AP
 
-  
+
   if (status == 1) {
     //Try to connect to the network
     SH_DEBUG_PRINTLN("Trying to connect...");
@@ -359,7 +365,7 @@ void setup() {
       //same logic should probably happen if it get's disconnected for some reason, so technically this should happen in a back channel.
 
       //digitalWrite(STATUS_LED_PIN, LOW);
-    
+
     } else {
       //Connected to the network
       SH_DEBUG_PRINT("Connected to:");
@@ -428,7 +434,6 @@ void setup() {
   }
 
 #else
-   = true;
   status = 1;
 #endif
 
@@ -458,14 +463,12 @@ int noConnectionLoopCount = 0;
 void loop() {
 
   //  if ( && !inSending)
-  if ( status == 1 ) {    
+  if ( status == 1 ) {
     //wait
     delayWithDecency(CYCLE_DELAY);
 
     //increase counter
     loopCycleCount++;
-
-            SH_DEBUG_PRINT("Hi from loop status 1 0");
 
     //measure noise
     int noiseSessionMax = 0;
@@ -490,9 +493,6 @@ void loop() {
       //something bad has happened, but rather send a 0.
     }
 
-                SH_DEBUG_PRINT("Hi from loop status 1 1");
-
-
 
 #ifdef NO_CONNECTION_PROFILE
     noiseMeasureLength = millis() - noiseMeasureLength;
@@ -514,6 +514,11 @@ void loop() {
     noiseTotal += (long)currentSessionNoise;
 
     if (loopCycleCount >= NUM_MEASURE_SESSIONS) {
+
+      struct sps30_measurement m;
+      char serial[SPS30_MAX_SERIAL_LEN];
+      uint16_t data_ready;
+      int16_t ret;
       //done measuring
       //measure dust, temp, hum and send data.
       int countTempHumReadouts = 10;
@@ -549,18 +554,34 @@ void loop() {
       sdsSerial.listen();
       sdsSensor.set_sleep(false);
       sdsSensor.set_mode(sds011::QUERY);
+
       //wait just enough for it to get back on its senses
       delayWithDecency(15000);
-      pm10SensorOK = sdsSensor.query_data_auto(&pm25, &pm10, 10);
+      do {
+        pm10SensorOK = sps30_read_data_ready(&data_ready);
+        if (pm10SensorOK < 0) {
+          Serial.print("error reading data-ready flag: ");
+          Serial.println(pm10SensorOK);
+        } else if (!data_ready)
+          Serial.print("data not ready, no new measurement available\n");
+        else
+          break;
+        delay(100); /* retry in 100ms */
+      } while (1);
+
+
+
+      pm10SensorOK = sps30_read_measurement(&m);
       delayWithDecency(100);
       sdsSensor.set_sleep(true);
-
+      
       if (!pm10SensorOK) {
         SH_DEBUG_PRINT("Failed to verify PM10 data: ");
         SH_DEBUG_PRINT("pm25: ");
-        SH_DEBUG_PRINT_DEC(pm25, DEC);
+        SH_DEBUG_PRINT_DEC(m.mc_2p5, DEC);
         SH_DEBUG_PRINT(", pm10: ");
-        SH_DEBUG_PRINT_DEC(pm10, DEC);
+        SH_DEBUG_PRINT(m.mc_1p0);
+        SH_DEBUG_PRINT_DEC(m.mc_1p0, DEC);
         SH_DEBUG_PRINTLN(".");
       }
 
@@ -615,10 +636,9 @@ void loop() {
       //- 2 bytes: pm10
       //- 2 bytes: pm25
       //- 2 bytes pressure
-                SH_DEBUG_PRINT("Hi from loop status 1 3");
 
-      packet[0] = 4; //version to be changed to something else
-      packet[1] = valuesMask;
+      //      packet[0] = 4; //version to be changed to something else
+      //      packet[1] = valuesMask;
       //couple of versions shold be used, bitmask sort of present values
       //sds
       //temp/hum/pres
@@ -626,17 +646,15 @@ void loop() {
       //noise
       //maybe the first byte to have a different version number
       //and a second one to be a mask of the used values.
-      packet[2] = (byte)hextemp;
-      packet[3] = (byte)hexhum;
-      packet[4] = (byte)noise; //noise
-      packet[5] = (byte)(pm10 / 256);
-      packet[6] = (byte)(pm10 % 256);
-      packet[7] = (byte)(pm25 / 256);
-      packet[8] = (byte)(pm25 % 256);
-      packet[9] = (byte)(pressure / 256);
-      packet[10] = (byte)(pressure % 256);
-
-                      SH_DEBUG_PRINT("Hi from loop status 1 4");
+      //      packet[2] = (byte)hextemp;
+      //      packet[3] = (byte)hexhum;
+      //      packet[4] = (byte)noise; //noise
+      //      packet[5] = (byte)(pm10 / 256);
+      //      packet[6] = (byte)(pm10 % 256);
+      //      packet[7] = (byte)(pm25 / 256);
+      //      packet[8] = (byte)(pm25 % 256);
+      //      packet[9] = (byte)(pressure / 256);
+      //      packet[10] = (byte)(pressure % 256);
 
       digitalWrite(13, HIGH);
       SH_DEBUG_PRINTLN("TXing: ");
@@ -680,11 +698,11 @@ void loop() {
       ESP.restart();
     }
   }
-//#ifndef NO_CONNECTION_PROFILE
-//  if (status == 1) {
-//    os_runloop_once();
-//  }
-//#endif
+  //#ifndef NO_CONNECTION_PROFILE
+  //  if (status == 1) {
+  //    os_runloop_once();
+  //  }
+  //#endif
 }
 
 //Web server params below
@@ -807,11 +825,11 @@ void handlePostLorawan() {
 void delayWithDecency(int units) {
   for (int i = 0; i < units; i += 10) {
     delay(10);
-//#ifndef NO_CONNECTION_PROFILE
-//    if (status == 1) {
-//      os_runloop_once();
-//    }
-//#endif
+    #ifndef NO_CONNECTION_PROFILE
+        if (status == 1) {
+          os_runloop_once();
+        }
+    #endif
   }
 }
 
