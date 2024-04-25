@@ -275,6 +275,8 @@ void setup() {
   SH_DEBUG_PRINTLN("Waiting SPS sensor to boot.");
   delay(2000);
 
+  sps30_sleep();
+
   //Init the temp/hum sensor
   // Set up oversampling and filter initialization
   SH_DEBUG_PRINTLN("Init BME sensor.");
@@ -538,7 +540,9 @@ void loop() {
       struct sps30_measurement m;
       char serial[SPS30_MAX_SERIAL_LEN];
       uint16_t data_ready;
-      int16_t ret;
+
+      sps30_wake_up();
+      sps30_start_measurement();
 
       //wait just enough for it to get back on its senses
       delayWithDecency(15000);
@@ -557,6 +561,9 @@ void loop() {
 
 
       pm10SensorOK = sps30_read_measurement(&m);
+
+      sps30_stop_measurement();
+      sps30_sleep();
       delayWithDecency(100);
 
       if (pm10SensorOK != 0) {
