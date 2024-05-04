@@ -12,7 +12,7 @@
 #define WL_MAC_ADDR_LENGTH 6
 
 // Uncomment if you want to test the device without LoRaWAN/WiFi connectivity
-#define NO_CONNECTION_PROFILE 1
+//#define NO_CONNECTION_PROFILE 1
 // Uncomment if you want to enable debug lines printing in console and more 2 minutes interval
 // USE WITH CARE SINCE IT MIGHT RESULT IN A DEVIVCE BAN FROM pulse.eco IF USED LIVE
 #define DEBUG_PROFILE 1
@@ -56,7 +56,7 @@
 #define SH_DEBUG_PRINT_DEC(a,b) debugSerial.print(a,b)
 #define SH_DEBUG_PRINTLN_DEC(a,b) debugSerial.println(a,b)
 #else
-#define NUM_MEASURE_SESSIONS 90
+#define NUM_MEASURE_SESSIONS 2
 #define CYCLE_DELAY 10000
 #define SH_DEBUG_PRINTLN(a)
 #define SH_DEBUG_PRINT(a)
@@ -89,6 +89,8 @@ Adafruit_BME280 bme280; // I2C
 #define NUM_NOISE_SAMPLES 1000
 
 WebServer server(80);
+
+WiFiClientSecure client;
 
 //EEPROM Data
 const int EEPROM_SIZE = 256;
@@ -154,7 +156,7 @@ const lmic_pinmap lmic_pins = {
   .dio = {26, 33, 32},
 };
 
-
+const char* host = "pulse.eco";
 
 void discoverAndSetStatus() {
   String data = "";
@@ -229,6 +231,8 @@ void discoverAndSetStatus() {
   }
 }
 
+int16_t ret;
+
 
 void setup() {
   pinMode(13, OUTPUT);
@@ -269,7 +273,7 @@ void setup() {
   SH_DEBUG_PRINTLN("Init SPS sensor.");
   //Init the pm SENSOR
   sensirion_i2c_init();
-  int16_t ret;
+
   ret = sps30_start_measurement();
 
   SH_DEBUG_PRINTLN("Waiting SPS sensor to boot.");
@@ -319,6 +323,8 @@ void setup() {
   discoverAndSetStatus();
   // statuses: 0 -> initial AP; 1-> active mode client; 2 -> active mode AP
 
+  SH_DEBUG_PRINT("STATUS: ");
+  SH_DEBUG_PRINTLN(status);
 
   if (status == 1) {
     //Try to connect to the network
@@ -340,6 +346,7 @@ void setup() {
     // Wait for connection
     boolean toggleLed = false;
     int numTries = 200;
+
     while (WiFi.status() != WL_CONNECTED && --numTries > 0) {
       delay (250);
       SH_DEBUG_PRINT(".");
@@ -347,16 +354,8 @@ void setup() {
       //digitalWrite(STATUS_LED_PIN, toggleLed);
     }
 
-    if (WiFi.status() != WL_CONNECTED) {
-      SH_DEBUG_PRINT("Undable to connect to the network: ");
-      SH_DEBUG_PRINTLN( ssid );
-      status = 0; //should be reconsidered what this means. LoRaWAN should be OK but wifi setup fails. can potentailly lead to configuration deadlock...
-      //should start working in AP mode technically, but with different SSID and same password. retry after couple of sessions or so.
-      //same logic should probably happen if it get's disconnected for some reason, so technically this should happen in a back channel.
+    if (WiFi.status() ==  WL_CONNECTED) {
 
-      //digitalWrite(STATUS_LED_PIN, LOW);
-
-    } else {
       //Connected to the network
       SH_DEBUG_PRINT("Connected to:");
       SH_DEBUG_PRINTLN( ssid );
@@ -364,10 +363,10 @@ void setup() {
       SH_DEBUG_PRINTLN( WiFi.localIP() );
 
       //Set up MDNS
-      if (!MDNS.begin("pulse-eco")) {
-        SH_DEBUG_PRINTLN("Error setting up MDNS responder!");
-      }
-      MDNS.addService("http", "tcp", 80);
+      //      if (!MDNS.begin("pulse-eco")) {
+      //        SH_DEBUG_PRINTLN("Error setting up MDNS responder!");
+      //      }
+      //      MDNS.addService("http", "tcp", 80);
 
       //Set up status respond
       //          server.on("/", HTTP_GET, handleStatusGet);
@@ -383,6 +382,15 @@ void setup() {
 
       //digitalWrite(STATUS_LED_PIN, HIGH);
       SH_DEBUG_PRINTLN("Joined network, waiting for modem...");
+    } else {
+
+      SH_DEBUG_PRINT("Undable to connect to the network: ");
+      SH_DEBUG_PRINTLN( ssid );
+      status = 0; //should be reconsidered what this means. LoRaWAN should be OK but wifi setup fails. can potentailly lead to configuration deadlock...
+      //should start working in AP mode technically, but with different SSID and same password. retry after couple of sessions or so.
+      //same logic should probably happen if it get's disconnected for some reason, so technically this should happen in a back channel.
+
+      //digitalWrite(STATUS_LED_PIN, LOW);
     }
     //    doLoRaWAN();
   }
@@ -422,7 +430,6 @@ void setup() {
     SH_DEBUG_PRINTLN(apIP);
 
   }
-
 #else
   status = 1;
 #endif
@@ -431,17 +438,14 @@ void setup() {
   delayWithDecency(2000);
   digitalWrite(13, LOW);
   displayInitScreen(true);
-
-  SH_DEBUG_PRINT("Status");
-  SH_DEBUG_PRINT(status);
 }
 
 char hexbuffer[3];
 
 int loopCycleCount = 0;
 long noiseTotal = 0;
-int pm10 = 0;
-int pm25 = 0;
+float pm10 = 0;
+float pm25 = 0;
 int temp = 0;
 int humidity = 0;
 int pressure = 0;
@@ -452,8 +456,11 @@ int noConnectionLoopCount = 0;
 
 void loop() {
 
+  SH_DEBUG_PRINTLN("ENTERS LOOP");
+
   //  if ( && !inSending)
   if ( status == 1 ) {
+
     //wait
     delayWithDecency(CYCLE_DELAY);
 
@@ -482,6 +489,8 @@ void loop() {
       currentSessionNoise = 0;
       //something bad has happened, but rather send a 0.
     }
+
+    SH_DEBUG_PRINTLN("AFTER NOISE MEASUREMENT");
 
 
 #ifdef NO_CONNECTION_PROFILE
@@ -546,21 +555,16 @@ void loop() {
 
       //wait just enough for it to get back on its senses
       delayWithDecency(15000);
-      do {
-        pm10SensorOK = sps30_read_data_ready(&data_ready);
-        if (pm10SensorOK < 0) {
-          Serial.print("error reading data-ready flag: ");
-          Serial.println(pm10SensorOK);
-        } else if (!data_ready)
-          Serial.print("data not ready, no new measurement available\n");
-        else
-          break;
-        delay(100); /* retry in 100ms */
-      } while (1);
 
+      ret = sps30_read_data_ready(&data_ready);
 
+      if (ret == 0) {
+        pm10SensorOK = sps30_read_measurement(&m);
+        Serial.println(ret);
+      } else {
+        Serial.print("error reading measurement\n");
+      }
 
-      pm10SensorOK = sps30_read_measurement(&m);
 
       sps30_stop_measurement();
       sps30_sleep();
@@ -578,9 +582,11 @@ void loop() {
 
       if (pm10SensorOK == 0) {
         SH_DEBUG_PRINT("pm25: ");
-        SH_DEBUG_PRINT_DEC(m.mc_2p5, DEC);
+        pm25 = m.mc_2p5;
+        SH_DEBUG_PRINT_DEC(pm25, DEC);
         SH_DEBUG_PRINT(", pm10: ");
-        SH_DEBUG_PRINT_DEC(m.mc_1p0, DEC);
+        pm10 = m.mc_1p0;
+        SH_DEBUG_PRINT_DEC(pm10, DEC);
       }
       if (noise > 10) {
         SH_DEBUG_PRINT(", noise: ");
@@ -599,6 +605,79 @@ void loop() {
         SH_DEBUG_PRINT_DEC(gasResistance, DEC);
       }
       SH_DEBUG_PRINTLN("");
+
+      //do the send here
+
+      String url = "/wifipoint/store";
+      url += "?devAddr=" + deviceName;
+      url += "&version=2";
+      if (pm10SensorOK == 0) {
+        url += "&pm10=" + String(pm10);
+        url += "&pm25=" + String(pm25);
+      }
+      if (noiseTotal > 10) {
+        url += "&noise=" + String(noiseTotal);
+      }
+      if (hasBME280 || hasBME680) {
+        url += "&temperature=" + String(temp);
+        url += "&humidity=" + String(humidity);
+        url += "&pressure=" + String(pressure);
+      }
+      if (hasBME680) {
+        url += "&gasresistance=" + String(gasResistance);
+      }
+
+      SH_DEBUG_PRINTLN(url);
+
+#ifdef DEBUG_PROFILE
+      SH_DEBUG_PRINT("Invoking: ");
+      SH_DEBUG_PRINTLN(url);
+#endif
+
+#ifndef NO_CONNECTION_PROFILE
+      SH_DEBUG_PRINT("connecting to ");
+      SH_DEBUG_PRINTLN(host);
+      if (!client.connect(host, 443)) {
+        SH_DEBUG_PRINTLN("Connection failed. Restarting");
+        ESP.restart();
+        return;
+      }
+      String userAgent = "WIFI_SENSOR_V2_1";
+#ifdef WITH_HOST_VERIFICATION
+      userAgent = userAgent + "_V";
+      if (client.verify(fingerprint, host)) {
+        SH_DEBUG_PRINTLN("certificate matches");
+      } else {
+        SH_DEBUG_PRINTLN("certificate doesn't match! Restarting");
+        ESP.restart();
+      }
+#else
+      userAgent = userAgent + "_U";
+#endif
+      client.print(String("GET ") + url + " HTTP/1.1\r\n" +
+                   "Host: " + host + "\r\n" +
+                   "User-Agent: " + userAgent + "\r\n" +
+                   "Connection: close\r\n\r\n");
+
+      SH_DEBUG_PRINTLN("HTTPS request sent");
+      while (client.connected()) {
+        String line = client.readStringUntil('\n');
+        if (line == "\r") {
+          SH_DEBUG_PRINTLN("HTTP Headers received");
+          break;
+        }
+      }
+      String line = client.readStringUntil('\n');
+      if (line.startsWith("OK")) {
+        SH_DEBUG_PRINTLN("Transmission successfull!");
+      } else {
+        SH_DEBUG_PRINTLN("Transmission failed!");
+      }
+      //Serial.println("closing connection. CHECK THIS PROPERLY!!!");
+
+      //client.disconnect(); //See how to properly dispose of the connection
+#endif
+
       int hextemp = min(max(temp + 127, 0), 255);
       int hexhum = min(max(humidity, 0), 255);
 
@@ -663,6 +742,7 @@ void loop() {
       do_send(&sendjob);
 #endif
       digitalWrite(13, LOW);
+
 
 
       //reset
