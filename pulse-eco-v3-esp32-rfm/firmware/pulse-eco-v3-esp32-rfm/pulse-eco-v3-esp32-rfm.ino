@@ -330,7 +330,7 @@ void setup() {
 
   delay(2000);
 
-    // Init the pm sensor
+  // Init the pm sensor
   uint8_t auto_clean_days = 4;
 
   sensirion_i2c_init();
@@ -451,12 +451,16 @@ void setup() {
     WiFi.softAP(AP_NameChar);
     delay(500);
 
-    server.on("/", HTTP_GET, handleGetHomepage);
-    server.on("/wifi", HTTP_GET, handleGetWifi);
-    server.on("/lorawan", HTTP_GET, handleGetLorawan);
-    server.on("/wifiConfig", HTTP_POST, handlePostWifi);
-    server.on("/loraWanConfig", HTTP_POST, handlePostLorawan);
-    server.onNotFound(handleGetHomepage);
+    server.on("/", HTTP_GET, handleStatusGet);
+    server.on("/check", HTTP_GET, handleStatusCheck);
+    server.on("/values", HTTP_GET, handleStatusValues);
+    server.on("/valuesJson", HTTP_GET, handleStatusValuesJSON);
+    server.on("/reboot", HTTP_POST, handleReboot);
+    server.on("/reset", HTTP_GET, handleResetRequest);
+    server.on("/reset", HTTP_POST, handleResetResult);
+    server.onNotFound(handleStatusGet);
+    server.begin();
+
 
     server.begin();
     SH_DEBUG_PRINTLN("HTTP server started");
@@ -525,6 +529,7 @@ void setup() {
       server.on("/reset", HTTP_POST, handleResetResult);
       server.onNotFound(handleStatusGet);
       server.begin();
+
     }
 
     doLoRaWAN();
@@ -746,7 +751,7 @@ void loop() {
 #endif
       }
 
-      if (status ==2 && status == 3 && !inSending) {
+      if (status == 2 && status == 3 && !inSending) {
 
         int hextemp = min(max(temp + 127, 0), 255);
         int hexhum = min(max(humidity, 0), 255);
@@ -1402,12 +1407,12 @@ void readEnvironmentSensors() {
     }
   }
 
-//  if (countTempHumReadouts <= 0) {
-//    //failed to read temp/hum/pres/gas
-//    //disable BME sensors
-//    hasBME680 = false;
-//    hasBME280 = false;
-//  }
+  //  if (countTempHumReadouts <= 0) {
+  //    //failed to read temp/hum/pres/gas
+  //    //disable BME sensors
+  //    hasBME680 = false;
+  //    hasBME280 = false;
+  //  }
 }
 
 // Method to measure PM10 and PM2.5 using an SPS30 sensor
