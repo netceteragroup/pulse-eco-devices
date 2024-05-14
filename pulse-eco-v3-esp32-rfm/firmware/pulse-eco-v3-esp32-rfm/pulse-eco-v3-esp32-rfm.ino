@@ -461,8 +461,6 @@ void setup() {
     server.onNotFound(handleStatusGet);
     server.begin();
 
-
-    server.begin();
     SH_DEBUG_PRINTLN("HTTP server started");
     SH_DEBUG_PRINT("AP IP address: ");
     SH_DEBUG_PRINTLN(apIP);
