@@ -72,7 +72,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 
 //Noise sensor pins
 //Noise sensor pins
-#define NOISE_MEASURE_PIN 36
+#define NOISE_MEASURE_PIN 34
 #define NUM_NOISE_SAMPLES 1000
 
 //Init global objects
@@ -1332,6 +1332,7 @@ void measureNoise() {
 
   for (int sample = 0; sample < NUM_NOISE_SAMPLES; sample++) {
     currentSample = analogRead(NOISE_MEASURE_PIN);
+    SH_DEBUG_PRINTLN(currentSample);
     if (currentSample > 0 && currentSample < 1020) {
       if (currentSample > noiseSessionMax) {
         noiseSessionMax = currentSample;
