@@ -1332,7 +1332,6 @@ void measureNoise() {
 
   for (int sample = 0; sample < NUM_NOISE_SAMPLES; sample++) {
     currentSample = analogRead(NOISE_MEASURE_PIN);
-    SH_DEBUG_PRINTLN(currentSample);
     if (currentSample > 0 && currentSample < 1020) {
       if (currentSample > noiseSessionMax) {
         noiseSessionMax = currentSample;
