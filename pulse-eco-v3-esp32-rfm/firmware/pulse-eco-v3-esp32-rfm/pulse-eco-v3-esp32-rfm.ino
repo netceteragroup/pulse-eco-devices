@@ -53,10 +53,10 @@
   #define CYCLE_DELAY 30000
 #endif
 #define debugSerial Serial
-#define SH_DEBUG_PRINTLN(a) Serial.println(a)
-#define SH_DEBUG_PRINT(a) Serial.print(a)
-#define SH_DEBUG_PRINT_DEC(a,b) Serial.print(a,b)
-#define SH_DEBUG_PRINTLN_DEC(a,b) Serial.println(a,b)
+#define SH_DEBUG_PRINTLN(a) SH_DEBUG_PRINTLNln(a)
+#define SH_DEBUG_PRINT(a) SH_DEBUG_PRINTLN(a)
+#define SH_DEBUG_PRINT_DEC(a,b) SH_DEBUG_PRINTLN(a,b)
+#define SH_DEBUG_PRINTLN_DEC(a,b) SH_DEBUG_PRINTLNln(a,b)
 
 #define OLED_SDA 21
 #define OLED_SCL 22
@@ -332,20 +332,20 @@ void setup() {
 
   SH_DEBUG_PRINTLN("Waiting SPS sensor to boot.");
   while (sps30_probe() != 0) {
-    Serial.print("SPS sensor probing failed\n");
+    SH_DEBUG_PRINTLN("SPS sensor probing failed\n");
     delay(500);
   }
 
   operationResult = sps30_set_fan_auto_cleaning_interval_days(auto_clean_days);
 
   if (operationResult) {
-    Serial.print("error setting the auto-clean interval: ");
-    Serial.println(operationResult);
+    SH_DEBUG_PRINTLN("error setting the auto-clean interval: ");
+    SH_DEBUG_PRINTLNln(operationResult);
   }
 
   operationResult = sps30_start_measurement();
   if (operationResult < 0) {
-    Serial.print("error starting measurement\n");
+    SH_DEBUG_PRINTLN("error starting measurement\n");
   }
 
   delay(2000);
@@ -1416,10 +1416,10 @@ void measurePM() {
   do {
     operationResult = sps30_read_data_ready(&data_ready);
     if (operationResult < 0) {
-      Serial.print("error reading data-ready flag: ");
-      Serial.println(operationResult);
+      SH_DEBUG_PRINTLN("error reading data-ready flag: ");
+      SH_DEBUG_PRINTLNln(operationResult);
     } else if (!data_ready)
-      Serial.print("data not ready, no new measurement available\n");
+      SH_DEBUG_PRINTLN("data not ready, no new measurement available");
     else
       break;
     delay(100); /* retry in 100ms */
@@ -1427,7 +1427,7 @@ void measurePM() {
 
   operationResult = sps30_read_measurement(&m);
   if (operationResult < 0) {
-    Serial.print("error reading measurement\n");
+    SH_DEBUG_PRINTLN("error reading measurement");
   } else {
     pm25 = m.mc_2p5;
     pm10 = m.mc_1p0;
