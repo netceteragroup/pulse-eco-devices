@@ -74,9 +74,9 @@ const char configureLora[] PROGMEM = R"=====(
   <p>WI-FI INFO</p>
   <div class='line'></div>
   <div>Wi-Fi mode:</div>
-  <div><input type="radio" id="ap" name="wifiMode" value="ap"/>
+  <div><input type="radio" id="ap" name="operationMode" value="lora_ap"/>
   <label for="ap">Broadcast own Wi-Fi</label></div>
-  <div><input type="radio" id="ap" name="wifiMode" value="client"/>
+  <div><input type="radio" id="ap" name="operationMode" value="lora_sta"/>
   <label for="ap">Connect to home Wi-Fi</label></div>
   <div><br/></div>    
   <div>Wi-Fi Network Name (SSID):</div>

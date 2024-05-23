@@ -92,7 +92,7 @@ String password = "";
 String deviceName = "";
 
 // LoRaWAN config
-String wifiMode = "";
+String operationMode = "";
 String devaddr = "";
 String nwksKey = "";
 String appsKey = "";
@@ -198,6 +198,7 @@ void discoverAndSetStatus() {
         deviceName = readFields[0];
         ssid = readFields[1];
         password = readFields[2];
+        operationMode = "wifi";
       } else if (count == 6) {
         #ifdef DEBUG_PROFILE
           SH_DEBUG_PRINTLN("Read data parts for LoRaWAN:");
@@ -208,7 +209,7 @@ void discoverAndSetStatus() {
           SH_DEBUG_PRINTLN(readFields[4]); // NwkSKey
           SH_DEBUG_PRINTLN(readFields[5]); // AppSKey
         #endif
-        wifiMode = readFields[0];
+        operationMode = readFields[0];
         ssid = readFields[1];
         password = readFields[2];
         devaddr = readFields[3];
@@ -233,15 +234,15 @@ void discoverAndSetStatus() {
 
   } else {
 
-    if (wifiMode.equals("ap")) {
-      status = 2; // LoRaWAN in AP mode
-      SH_DEBUG_PRINTLN("Initially setting status to 2: LoRaWAN in AP mode.");
-    } else if (wifiMode.equals("client")) {
-      status = 3; // LoRaWAN in client mode
-      SH_DEBUG_PRINTLN("Initially setting status to 3: LoRaWAN in client mode.");
-    } else {
+    if (operationMode.equals("wifi")) {
       status = 1; // WiFi mode in STA
       SH_DEBUG_PRINTLN("Initially setting status to 1: try to connect to the network.");
+    } else if (operationMode.equals("lora_ap")) {
+      status = 2; // LoRaWAN in AP mode
+      SH_DEBUG_PRINTLN("Initially setting status to 2: LoRaWAN in AP mode.");
+    } else if (operationMode.equals("lora_sta")) {
+      status = 3; // LoRaWAN in client mode
+      SH_DEBUG_PRINTLN("Initially setting status to 3: LoRaWAN in client mode.");
     }
   }
 }
@@ -894,7 +895,7 @@ void handlePostLorawan() {
   }
 
   if (server.args() == 6
-      && server.argName(0).equals("wifiMode")
+      && server.argName(0).equals("operationMode")
       && server.argName(1).equals("ssid")
       && server.argName(2).equals("password")
       && server.argName(3).equals("devaddr")
