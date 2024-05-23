@@ -26,13 +26,12 @@
 #include <bme680.h>
 #include <Adafruit_BME680.h>
 #include <bme680_defs.h>
+
+// Includes for BME280
 #include <Adafruit_BME280.h>
 
 // Includes for SPS Sensirion
 #include <sps30.h>
-
-// Includes for BME280
-#include <Adafruit_BME280.h>
 
 #define SEALEVELPRESSURE_HPA (1013.25)
 
@@ -47,7 +46,7 @@
 #define NO_CONNECTION_PROFILE 1
 #define DEBUG_PROFILE 1
 #ifdef DEBUG_PROFILE
-#define NUM_MEASURE_SESSIONS 10
+#define NUM_MEASURE_SESSIONS 100
 #define CYCLE_DELAY 2000
 #else
 #define NUM_MEASURE_SESSIONS 30
@@ -71,17 +70,14 @@
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 
 //Noise sensor pins
-//Noise sensor pins
 #define NOISE_MEASURE_PIN 34
-#define NUM_NOISE_SAMPLES 1000
+#define NUM_NOISE_SAMPLES 1200
 
 //Init global objects
 
 TwoWire I2CBME = TwoWire(0);
-
 Adafruit_BME680 bme680; // I2C
 Adafruit_BME280 bme280; // I2C
-
 WebServer server(80);
 WiFiClientSecure client;
 
@@ -121,7 +117,7 @@ byte valuesMask = 0;
 
 // Uncomment this line if you want to use stronger host verification
 // It adds a tad more security, but you'll need to reflash your device more often
-#define WITH_HOST_VERIFICATION 1
+//#define WITH_HOST_VERIFICATION 1
 
 u1_t NWKSKEY[16] = LW_NWKSKEY;
 u1_t APPSKEY[16] = LW_APPSKEY;
@@ -136,9 +132,7 @@ void os_getArtEui (u1_t* buf) { }
 void os_getDevEui (u1_t* buf) { }
 void os_getDevKey (u1_t* buf) { }
 
-
 static osjob_t sendjob;
-
 
 // Schedule TX every this many seconds (might become longer due to duty
 // cycle limitations).
