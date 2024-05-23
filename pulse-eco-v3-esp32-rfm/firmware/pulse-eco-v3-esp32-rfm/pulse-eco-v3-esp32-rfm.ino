@@ -361,64 +361,7 @@ void setup() {
     SH_DEBUG_PRINTLN(status);
 
     if (status == 1) {
-      //Try to connect to the network
-      SH_DEBUG_PRINTLN("Trying to connect...");
-      char ssidBuf[ssid.length() + 1];
-      ssid.toCharArray(ssidBuf, ssid.length() + 1);
-      char passBuf[password.length() + 1];
-      password.toCharArray(passBuf, password.length() + 1);
-      WiFi.disconnect();
-      WiFi.mode(WIFI_STA);
-      WiFi.begin ( ssidBuf, passBuf );
-      SH_DEBUG_PRINT("SSID: ");
-      SH_DEBUG_PRINTLN(ssidBuf);
-      #ifdef DEBUG_PROFILE
-        SH_DEBUG_PRINT("Password: ");
-        SH_DEBUG_PRINTLN(passBuf);
-      #endif
-
-      // Wait for connection
-      boolean toggleLed = false;
-      int numTries = 200;
-
-      while (WiFi.status() != WL_CONNECTED && --numTries > 0) {
-        delay (250);
-        SH_DEBUG_PRINT(".");
-        toggleLed = !toggleLed;
-      }
-
-      SH_DEBUG_PRINT(WiFi.status());
-      if (WiFi.status() != WL_CONNECTED) {
-        SH_DEBUG_PRINT("Unable to connect to the network: ");
-        SH_DEBUG_PRINTLN( ssid );
-        status = 0;
-      } else {
-        //Connected to the network
-        SH_DEBUG_PRINT("Connected to:");
-        SH_DEBUG_PRINTLN( ssid );
-        SH_DEBUG_PRINT( "IP address: " );
-        SH_DEBUG_PRINTLN( WiFi.localIP() );
-
-        //Set up MDNS
-        if (!MDNS.begin("pulse-eco")) {
-          SH_DEBUG_PRINTLN("Error setting up MDNS responder!");
-        }
-        MDNS.addService("http", "tcp", 80);
-
-        //Set up status respond
-        server.on("/", HTTP_GET, handleStatusGet);
-        server.on("/check", HTTP_GET, handleStatusCheck);
-        server.on("/values", HTTP_GET, handleStatusValues);
-        server.on("/valuesJson", HTTP_GET, handleStatusValuesJSON);
-        server.on("/reboot", HTTP_POST, handleReboot);
-        server.on("/reset", HTTP_GET, handleResetRequest);
-        server.on("/reset", HTTP_POST, handleResetResult);
-        server.onNotFound(handleStatusGet);
-        server.begin();
-
-        SH_DEBUG_PRINTLN("Joined network, waiting for modem...");
-        isOkSetup = true;
-      }
+      setupWifiInSTAMode();
     }
 
     if (status == 2) {
@@ -431,19 +374,8 @@ void setup() {
 
       uint8_t mac[WL_MAC_ADDR_LENGTH];
       WiFi.softAPmacAddress(mac);
-      String macID = String(mac[WL_MAC_ADDR_LENGTH - 2], HEX) +
-                    String(mac[WL_MAC_ADDR_LENGTH - 1], HEX);
-      macID.toUpperCase();
-      String AP_NameString = "PulseEcoSensor-" + macID;
-
-      char AP_NameChar[AP_NameString.length() + 1];
-      memset(AP_NameChar, 0, AP_NameString.length() + 1);
-
-      for (int i = 0; i < AP_NameString.length(); i++)
-        AP_NameChar[i] = AP_NameString.charAt(i);
-
       WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
-      WiFi.softAP(AP_NameChar);
+      WiFi.softAP(ssid, password);
       delay(500);
 
       server.on("/", HTTP_GET, handleStatusGet);
@@ -465,68 +397,8 @@ void setup() {
     }
 
     if (status == 3) {
-      //Try to connect to the network
-      SH_DEBUG_PRINTLN("Trying to connect...");
-      char ssidBuf[ssid.length() + 1];
-      ssid.toCharArray(ssidBuf, ssid.length() + 1);
-      char passBuf[password.length() + 1];
-      password.toCharArray(passBuf, password.length() + 1);
-      WiFi.disconnect();
-      WiFi.mode(WIFI_STA);
-      WiFi.begin ( ssidBuf, passBuf );
-      SH_DEBUG_PRINT("SSID: ");
-      SH_DEBUG_PRINTLN(ssidBuf);
-      #ifdef DEBUG_PROFILE
-        SH_DEBUG_PRINT("Password: ");
-        SH_DEBUG_PRINTLN(passBuf);
-      #endif
-
-      // Wait for connection
-      boolean toggleLed = false;
-      int numTries = 200;
-      while (WiFi.status() != WL_CONNECTED && --numTries > 0) {
-        delay (250);
-        SH_DEBUG_PRINT(".");
-        toggleLed = !toggleLed;
-        //digitalWrite(STATUS_LED_PIN, toggleLed);
-      }
-
-      if (WiFi.status() != WL_CONNECTED) {
-        SH_DEBUG_PRINT("Undable to connect to the network: ");
-        SH_DEBUG_PRINTLN( ssid );
-        status = 0; //should be reconsidered what this means. LoRaWAN should be OK but wifi setup fails. can potentailly lead to configuration deadlock...
-        //should start working in AP mode technically, but with different SSID and same password. retry after couple of sessions or so.
-        //same logic should probably happen if it get's disconnected for some reason, so technically this should happen in a back channel.
-
-        //digitalWrite(STATUS_LED_PIN, LOW);
-      } else {
-        //Connected to the network
-        SH_DEBUG_PRINT("Connected to:");
-        SH_DEBUG_PRINTLN( ssid );
-        SH_DEBUG_PRINT( "IP address: " );
-        SH_DEBUG_PRINTLN( WiFi.localIP() );
-
-        //Set up MDNS
-        if (!MDNS.begin("pulse-eco")) {
-          SH_DEBUG_PRINTLN("Error setting up MDNS responder!");
-        }
-        MDNS.addService("http", "tcp", 80);
-
-        //Set up status respond
-        server.on("/", HTTP_GET, handleStatusGet);
-        server.on("/check", HTTP_GET, handleStatusCheck);
-        server.on("/values", HTTP_GET, handleStatusValues);
-        server.on("/valuesJson", HTTP_GET, handleStatusValuesJSON);
-        server.on("/reboot", HTTP_POST, handleReboot);
-        server.on("/reset", HTTP_GET, handleResetRequest);
-        server.on("/reset", HTTP_POST, handleResetResult);
-        server.onNotFound(handleStatusGet);
-        server.begin();
-      }
- 
+      setupWifiInSTAMode();
       doLoRaWAN();
-      isOkSetup = true;
-      SH_DEBUG_PRINTLN("Joined network, waiting for modem...");
     }
 
     if (status == 0) {
@@ -1125,6 +997,67 @@ void displayInitScreen(bool waiting) {
   }
 
   display.display();
+}
+
+void setupWifiInSTAMode() {
+  //Try to connect to the network
+  SH_DEBUG_PRINTLN("Trying to connect...");
+  char ssidBuf[ssid.length() + 1];
+  ssid.toCharArray(ssidBuf, ssid.length() + 1);
+  char passBuf[password.length() + 1];
+  password.toCharArray(passBuf, password.length() + 1);
+  WiFi.disconnect();
+  WiFi.mode(WIFI_STA);
+  WiFi.begin ( ssidBuf, passBuf );
+  SH_DEBUG_PRINT("SSID: ");
+  SH_DEBUG_PRINTLN(ssidBuf);
+  #ifdef DEBUG_PROFILE
+    SH_DEBUG_PRINT("Password: ");
+    SH_DEBUG_PRINTLN(passBuf);
+  #endif
+
+  // Wait for connection
+  boolean toggleLed = false;
+  int numTries = 200;
+
+  while (WiFi.status() != WL_CONNECTED && --numTries > 0) {
+    delay (250);
+    SH_DEBUG_PRINT(".");
+    toggleLed = !toggleLed;
+  }
+
+  SH_DEBUG_PRINT(WiFi.status());
+  if (WiFi.status() != WL_CONNECTED) {
+    SH_DEBUG_PRINT("Unable to connect to the network: ");
+    SH_DEBUG_PRINTLN( ssid );
+    status = 0;
+  } else {
+    //Connected to the network
+    SH_DEBUG_PRINT("Connected to:");
+    SH_DEBUG_PRINTLN( ssid );
+    SH_DEBUG_PRINT( "IP address: " );
+    SH_DEBUG_PRINTLN( WiFi.localIP() );
+
+    //Set up MDNS
+    if (!MDNS.begin("pulse-eco")) {
+      SH_DEBUG_PRINTLN("Error setting up MDNS responder!");
+    }
+    MDNS.addService("http", "tcp", 80);
+
+    //Set up status respond
+    server.on("/", HTTP_GET, handleStatusGet);
+    server.on("/check", HTTP_GET, handleStatusCheck);
+    server.on("/values", HTTP_GET, handleStatusValues);
+    server.on("/valuesJson", HTTP_GET, handleStatusValuesJSON);
+    server.on("/reboot", HTTP_POST, handleReboot);
+    server.on("/reset", HTTP_GET, handleResetRequest);
+    server.on("/reset", HTTP_POST, handleResetResult);
+    server.onNotFound(handleStatusGet);
+    server.begin();
+
+    SH_DEBUG_PRINTLN("Joined network, waiting for modem...");
+    isOkSetup = true;
+  }
 }
 
 void doLoRaWAN() {
