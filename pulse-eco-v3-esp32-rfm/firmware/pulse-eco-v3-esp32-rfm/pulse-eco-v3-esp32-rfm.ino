@@ -147,8 +147,10 @@ const lmic_pinmap lmic_pins = {
   .dio = {26, 33, 32},
 };
 
+// Constants
 const char* host = "pulse.eco";
 const char* fingerprint = "4E 9F 97 B8 6C 8F 70 C0 2A C9 6A 83 6D 5F 3B C7 81 C5 D6 3D";
+const int ledPin =  LED_BUILTIN;
 
 // Stores the result of various function calls for sps sensor to check success or failure
 int16_t operationResult;
@@ -249,8 +251,8 @@ void discoverAndSetStatus() {
 
 // the setup routine runs once when you press reset:
 void setup() {
-  pinMode(13, OUTPUT);
-  digitalWrite(13, HIGH);
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, HIGH);
   while (!debugSerial && millis() < 10000); // wait for Serial to be initialized
   debugSerial.begin(57600);
   delay(100);     // per sample code on RF_95 test
@@ -443,7 +445,7 @@ void setup() {
 
   //wait a bit before your start
   delayWithDecency(2000);
-  digitalWrite(13, LOW);
+  digitalWrite(ledPin, LOW);
   displayInitScreen(true);
 }
 
@@ -662,7 +664,7 @@ void loop() {
         packet[9] = (byte)(pressure / 256);
         packet[10] = (byte)(pressure % 256);
 
-        digitalWrite(13, HIGH);
+        digitalWrite(ledPin, HIGH);
         SH_DEBUG_PRINTLN("TXing: ");
         for (int i = 0; i < 11; i++) {
           sprintf(hexbuffer, "%02x", (int)packet[i]);
