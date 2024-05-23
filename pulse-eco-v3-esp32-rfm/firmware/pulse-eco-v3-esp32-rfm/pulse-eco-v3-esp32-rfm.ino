@@ -98,7 +98,7 @@ String nwksKey = "";
 String appsKey = "";
 
 static uint8_t mydata[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0xA,};
-byte packet[11];
+byte packet[13];
 
 //Flags
 int status = -1;
@@ -458,6 +458,7 @@ int noConnectionLoopCount = 0;
 int noiseTotal = 0;
 int pm10 = 0;
 int pm25 = 0;
+int pm1 = 0;
 int temp = 0;
 int humidity = 0;
 int pressure = 0;
@@ -517,6 +518,8 @@ void loop() {
         SH_DEBUG_PRINT_DEC(pm25, DEC);
         SH_DEBUG_PRINT(", pm10: ");
         SH_DEBUG_PRINT_DEC(pm10, DEC);
+        SH_DEBUG_PRINT(", pm1: ");
+        SH_DEBUG_PRINT_DEC(pm1, DEC);
       }
       if (noise > 10) {
         SH_DEBUG_PRINT(", noise: ");
@@ -554,6 +557,7 @@ void loop() {
         if (pm10SensorOK) {
           url += "&pm10=" + String(pm10);
           url += "&pm25=" + String(pm25);
+          url += "&pm25=" + String(pm1);
         }
         if (noise > 10) {
           url += "&noise=" + String(noise);
@@ -644,6 +648,7 @@ void loop() {
         //- 2 bytes: pm10
         //- 2 bytes: pm25
         //- 2 bytes pressure
+        //- 2 bytes: pm1
 
         packet[0] = 4; //version to be changed to something else
         packet[1] = valuesMask;
@@ -661,12 +666,14 @@ void loop() {
         packet[6] = (byte)(pm10 % 256);
         packet[7] = (byte)(pm25 / 256);
         packet[8] = (byte)(pm25 % 256);
-        packet[9] = (byte)(pressure / 256);
-        packet[10] = (byte)(pressure % 256);
+        packet[9] = (byte)(pm1 / 256);
+        packet[10] = (byte)(pm1 % 256);
+        packet[11] = (byte)(pressure / 256);
+        packet[12] = (byte)(pressure % 256);
 
         digitalWrite(ledPin, HIGH);
         SH_DEBUG_PRINTLN("TXing: ");
-        for (int i = 0; i < 11; i++) {
+        for (int i = 0; i < 13; i++) {
           sprintf(hexbuffer, "%02x", (int)packet[i]);
           SH_DEBUG_PRINT(hexbuffer);
           SH_DEBUG_PRINT(" ");
@@ -1365,7 +1372,8 @@ void measurePM() {
     SH_DEBUG_PRINTLN("error reading measurement");
   } else {
     pm25 = m.mc_2p5;
-    pm10 = m.mc_1p0;
+    pm10 = m.mc_10p0;
+    pm1 = m.mc_1p0;
     pm10SensorOK = true;
   }
 
