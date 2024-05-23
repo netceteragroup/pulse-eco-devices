@@ -46,11 +46,11 @@
 #define NO_CONNECTION_PROFILE 1
 #define DEBUG_PROFILE 1
 #ifdef DEBUG_PROFILE
-#define NUM_MEASURE_SESSIONS 100
-#define CYCLE_DELAY 2000
+  #define NUM_MEASURE_SESSIONS 100
+  #define CYCLE_DELAY 2000
 #else
-#define NUM_MEASURE_SESSIONS 30
-#define CYCLE_DELAY 30000
+  #define NUM_MEASURE_SESSIONS 30
+  #define CYCLE_DELAY 30000
 #endif
 #define debugSerial Serial
 #define SH_DEBUG_PRINTLN(a) Serial.println(a)
@@ -170,10 +170,10 @@ void discoverAndSetStatus() {
 
   if ((char)readValue == ']') {
     validData = true;
-#ifdef DEBUG_PROFILE
-    SH_DEBUG_PRINTLN("Read data:");
-    SH_DEBUG_PRINTLN(data);
-#endif
+    #ifdef DEBUG_PROFILE
+      SH_DEBUG_PRINTLN("Read data:");
+      SH_DEBUG_PRINTLN(data);
+    #endif
   } else {
     SH_DEBUG_PRINTLN("No data found in EEPROM");
   }
@@ -189,25 +189,25 @@ void discoverAndSetStatus() {
       SH_DEBUG_PRINTLN("Incorrect data format.");
     } else {
       if (count == 3) {
-#ifdef DEBUG_PROFILE
-        SH_DEBUG_PRINTLN("Read data parts for WiFi:");
-        SH_DEBUG_PRINTLN(readFields[0]);
-        SH_DEBUG_PRINTLN(readFields[1]);
-        SH_DEBUG_PRINTLN(readFields[2]);
-#endif
+        #ifdef DEBUG_PROFILE
+          SH_DEBUG_PRINTLN("Read data parts for WiFi:");
+          SH_DEBUG_PRINTLN(readFields[0]);
+          SH_DEBUG_PRINTLN(readFields[1]);
+          SH_DEBUG_PRINTLN(readFields[2]);
+        #endif
         deviceName = readFields[0];
         ssid = readFields[1];
         password = readFields[2];
       } else if (count == 6) {
-#ifdef DEBUG_PROFILE
-        SH_DEBUG_PRINTLN("Read data parts for LoRaWAN:");
-        SH_DEBUG_PRINTLN(readFields[0]); // WiFi mode (ap or client)
-        SH_DEBUG_PRINTLN(readFields[1]); // SSID
-        SH_DEBUG_PRINTLN(readFields[2]); // Password
-        SH_DEBUG_PRINTLN(readFields[3]); // DevAddr
-        SH_DEBUG_PRINTLN(readFields[4]); // NwkSKey
-        SH_DEBUG_PRINTLN(readFields[5]); // AppSKey
-#endif
+        #ifdef DEBUG_PROFILE
+          SH_DEBUG_PRINTLN("Read data parts for LoRaWAN:");
+          SH_DEBUG_PRINTLN(readFields[0]); // WiFi mode (ap or client)
+          SH_DEBUG_PRINTLN(readFields[1]); // SSID
+          SH_DEBUG_PRINTLN(readFields[2]); // Password
+          SH_DEBUG_PRINTLN(readFields[3]); // DevAddr
+          SH_DEBUG_PRINTLN(readFields[4]); // NwkSKey
+          SH_DEBUG_PRINTLN(readFields[5]); // AppSKey
+        #endif
         wifiMode = readFields[0];
         ssid = readFields[1];
         password = readFields[2];
@@ -255,13 +255,13 @@ void setup() {
   delay(100);     // per sample code on RF_95 test
   SH_DEBUG_PRINTLN(F("Starting"));
 
-#ifdef VCC_ENABLE
-  // For Pinoccio Scout boards
-  pinMode(VCC_ENABLE, OUTPUT);
-  digitalWrite(VCC_ENABLE, HIGH);
-  SH_DEBUG_PRINTLN(F("VCC_ENABLE ON"));
-  delay(1000);
-#endif
+  #ifdef VCC_ENABLE
+    // For Pinoccio Scout boards
+    pinMode(VCC_ENABLE, OUTPUT);
+    digitalWrite(VCC_ENABLE, HIGH);
+    SH_DEBUG_PRINTLN(F("VCC_ENABLE ON"));
+    delay(1000);
+  #endif
 
   //reset OLED display via software
   pinMode(OLED_RST, OUTPUT);
@@ -352,59 +352,99 @@ void setup() {
 
   EEPROM.begin(EEPROM_SIZE);
 
-#ifndef NO_CONNECTION_PROFILE
-  discoverAndSetStatus();
-  // statuses: 0 -> initial AP; 1-> active mode client; 2 -> active mode LoRaWAN AP; 3 -> active mode LoRaWAN client;
+  #ifndef NO_CONNECTION_PROFILE
+    discoverAndSetStatus();
+    // statuses: 0 -> initial AP; 1-> active mode client; 2 -> active mode LoRaWAN AP; 3 -> active mode LoRaWAN client;
 
-  SH_DEBUG_PRINT("STATUS: ");
-  SH_DEBUG_PRINTLN(status);
+    SH_DEBUG_PRINT("STATUS: ");
+    SH_DEBUG_PRINTLN(status);
 
-  if (status == 1) {
-    //Try to connect to the network
-    SH_DEBUG_PRINTLN("Trying to connect...");
-    char ssidBuf[ssid.length() + 1];
-    ssid.toCharArray(ssidBuf, ssid.length() + 1);
-    char passBuf[password.length() + 1];
-    password.toCharArray(passBuf, password.length() + 1);
-    WiFi.disconnect();
-    WiFi.mode(WIFI_STA);
-    WiFi.begin ( ssidBuf, passBuf );
-    SH_DEBUG_PRINT("SSID: ");
-    SH_DEBUG_PRINTLN(ssidBuf);
-#ifdef DEBUG_PROFILE
-    SH_DEBUG_PRINT("Password: ");
-    SH_DEBUG_PRINTLN(passBuf);
-#endif
+    if (status == 1) {
+      //Try to connect to the network
+      SH_DEBUG_PRINTLN("Trying to connect...");
+      char ssidBuf[ssid.length() + 1];
+      ssid.toCharArray(ssidBuf, ssid.length() + 1);
+      char passBuf[password.length() + 1];
+      password.toCharArray(passBuf, password.length() + 1);
+      WiFi.disconnect();
+      WiFi.mode(WIFI_STA);
+      WiFi.begin ( ssidBuf, passBuf );
+      SH_DEBUG_PRINT("SSID: ");
+      SH_DEBUG_PRINTLN(ssidBuf);
+      #ifdef DEBUG_PROFILE
+        SH_DEBUG_PRINT("Password: ");
+        SH_DEBUG_PRINTLN(passBuf);
+      #endif
 
-    // Wait for connection
-    boolean toggleLed = false;
-    int numTries = 200;
+      // Wait for connection
+      boolean toggleLed = false;
+      int numTries = 200;
 
-    while (WiFi.status() != WL_CONNECTED && --numTries > 0) {
-      delay (250);
-      SH_DEBUG_PRINT(".");
-      toggleLed = !toggleLed;
+      while (WiFi.status() != WL_CONNECTED && --numTries > 0) {
+        delay (250);
+        SH_DEBUG_PRINT(".");
+        toggleLed = !toggleLed;
+      }
+
+      SH_DEBUG_PRINT(WiFi.status());
+      if (WiFi.status() != WL_CONNECTED) {
+        SH_DEBUG_PRINT("Unable to connect to the network: ");
+        SH_DEBUG_PRINTLN( ssid );
+        status = 0;
+      } else {
+        //Connected to the network
+        SH_DEBUG_PRINT("Connected to:");
+        SH_DEBUG_PRINTLN( ssid );
+        SH_DEBUG_PRINT( "IP address: " );
+        SH_DEBUG_PRINTLN( WiFi.localIP() );
+
+        //Set up MDNS
+        if (!MDNS.begin("pulse-eco")) {
+          SH_DEBUG_PRINTLN("Error setting up MDNS responder!");
+        }
+        MDNS.addService("http", "tcp", 80);
+
+        //Set up status respond
+        server.on("/", HTTP_GET, handleStatusGet);
+        server.on("/check", HTTP_GET, handleStatusCheck);
+        server.on("/values", HTTP_GET, handleStatusValues);
+        server.on("/valuesJson", HTTP_GET, handleStatusValuesJSON);
+        server.on("/reboot", HTTP_POST, handleReboot);
+        server.on("/reset", HTTP_GET, handleResetRequest);
+        server.on("/reset", HTTP_POST, handleResetResult);
+        server.onNotFound(handleStatusGet);
+        server.begin();
+
+        SH_DEBUG_PRINTLN("Joined network, waiting for modem...");
+        isOkSetup = true;
+      }
     }
 
-    SH_DEBUG_PRINT(WiFi.status());
-    if (WiFi.status() != WL_CONNECTED) {
-      SH_DEBUG_PRINT("Unable to connect to the network: ");
-      SH_DEBUG_PRINTLN( ssid );
-      status = 0;
-    } else {
-      //Connected to the network
-      SH_DEBUG_PRINT("Connected to:");
-      SH_DEBUG_PRINTLN( ssid );
-      SH_DEBUG_PRINT( "IP address: " );
-      SH_DEBUG_PRINTLN( WiFi.localIP() );
+    if (status == 2) {
 
-      //Set up MDNS
-      if (!MDNS.begin("pulse-eco")) {
-        SH_DEBUG_PRINTLN("Error setting up MDNS responder!");
-      }
-      MDNS.addService("http", "tcp", 80);
+      //Input params
+      //Start up the web server
+      SH_DEBUG_PRINTLN("Setting up configuration web server");
+      WiFi.disconnect();
+      WiFi.mode(WIFI_AP);
 
-      //Set up status respond
+      uint8_t mac[WL_MAC_ADDR_LENGTH];
+      WiFi.softAPmacAddress(mac);
+      String macID = String(mac[WL_MAC_ADDR_LENGTH - 2], HEX) +
+                    String(mac[WL_MAC_ADDR_LENGTH - 1], HEX);
+      macID.toUpperCase();
+      String AP_NameString = "PulseEcoSensor-" + macID;
+
+      char AP_NameChar[AP_NameString.length() + 1];
+      memset(AP_NameChar, 0, AP_NameString.length() + 1);
+
+      for (int i = 0; i < AP_NameString.length(); i++)
+        AP_NameChar[i] = AP_NameString.charAt(i);
+
+      WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
+      WiFi.softAP(AP_NameChar);
+      delay(500);
+
       server.on("/", HTTP_GET, handleStatusGet);
       server.on("/check", HTTP_GET, handleStatusCheck);
       server.on("/values", HTTP_GET, handleStatusValues);
@@ -415,166 +455,123 @@ void setup() {
       server.onNotFound(handleStatusGet);
       server.begin();
 
-      SH_DEBUG_PRINTLN("Joined network, waiting for modem...");
+      SH_DEBUG_PRINTLN("HTTP server started");
+      SH_DEBUG_PRINT("AP IP address: ");
+      SH_DEBUG_PRINTLN(apIP);
+
+      doLoRaWAN();
       isOkSetup = true;
     }
-  }
 
-  if (status == 2) {
+    if (status == 3) {
+      //Try to connect to the network
+      SH_DEBUG_PRINTLN("Trying to connect...");
+      char ssidBuf[ssid.length() + 1];
+      ssid.toCharArray(ssidBuf, ssid.length() + 1);
+      char passBuf[password.length() + 1];
+      password.toCharArray(passBuf, password.length() + 1);
+      WiFi.disconnect();
+      WiFi.mode(WIFI_STA);
+      WiFi.begin ( ssidBuf, passBuf );
+      SH_DEBUG_PRINT("SSID: ");
+      SH_DEBUG_PRINTLN(ssidBuf);
+      #ifdef DEBUG_PROFILE
+        SH_DEBUG_PRINT("Password: ");
+        SH_DEBUG_PRINTLN(passBuf);
+      #endif
 
-    //Input params
-    //Start up the web server
-    SH_DEBUG_PRINTLN("Setting up configuration web server");
-    WiFi.disconnect();
-    WiFi.mode(WIFI_AP);
-
-    uint8_t mac[WL_MAC_ADDR_LENGTH];
-    WiFi.softAPmacAddress(mac);
-    String macID = String(mac[WL_MAC_ADDR_LENGTH - 2], HEX) +
-                   String(mac[WL_MAC_ADDR_LENGTH - 1], HEX);
-    macID.toUpperCase();
-    String AP_NameString = "PulseEcoSensor-" + macID;
-
-    char AP_NameChar[AP_NameString.length() + 1];
-    memset(AP_NameChar, 0, AP_NameString.length() + 1);
-
-    for (int i = 0; i < AP_NameString.length(); i++)
-      AP_NameChar[i] = AP_NameString.charAt(i);
-
-    WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
-    WiFi.softAP(AP_NameChar);
-    delay(500);
-
-    server.on("/", HTTP_GET, handleStatusGet);
-    server.on("/check", HTTP_GET, handleStatusCheck);
-    server.on("/values", HTTP_GET, handleStatusValues);
-    server.on("/valuesJson", HTTP_GET, handleStatusValuesJSON);
-    server.on("/reboot", HTTP_POST, handleReboot);
-    server.on("/reset", HTTP_GET, handleResetRequest);
-    server.on("/reset", HTTP_POST, handleResetResult);
-    server.onNotFound(handleStatusGet);
-    server.begin();
-
-    SH_DEBUG_PRINTLN("HTTP server started");
-    SH_DEBUG_PRINT("AP IP address: ");
-    SH_DEBUG_PRINTLN(apIP);
-
-    doLoRaWAN();
-    isOkSetup = true;
-  }
-
-  if (status == 3) {
-    //Try to connect to the network
-    SH_DEBUG_PRINTLN("Trying to connect...");
-    char ssidBuf[ssid.length() + 1];
-    ssid.toCharArray(ssidBuf, ssid.length() + 1);
-    char passBuf[password.length() + 1];
-    password.toCharArray(passBuf, password.length() + 1);
-    WiFi.disconnect();
-    WiFi.mode(WIFI_STA);
-    WiFi.begin ( ssidBuf, passBuf );
-    SH_DEBUG_PRINT("SSID: ");
-    SH_DEBUG_PRINTLN(ssidBuf);
-#ifdef DEBUG_PROFILE
-    SH_DEBUG_PRINT("Password: ");
-    SH_DEBUG_PRINTLN(passBuf);
-#endif
-
-    // Wait for connection
-    boolean toggleLed = false;
-    int numTries = 200;
-    while (WiFi.status() != WL_CONNECTED && --numTries > 0) {
-      delay (250);
-      SH_DEBUG_PRINT(".");
-      toggleLed = !toggleLed;
-      //digitalWrite(STATUS_LED_PIN, toggleLed);
-    }
-
-    if (WiFi.status() != WL_CONNECTED) {
-      SH_DEBUG_PRINT("Undable to connect to the network: ");
-      SH_DEBUG_PRINTLN( ssid );
-      status = 0; //should be reconsidered what this means. LoRaWAN should be OK but wifi setup fails. can potentailly lead to configuration deadlock...
-      //should start working in AP mode technically, but with different SSID and same password. retry after couple of sessions or so.
-      //same logic should probably happen if it get's disconnected for some reason, so technically this should happen in a back channel.
-
-      //digitalWrite(STATUS_LED_PIN, LOW);
-    } else {
-      //Connected to the network
-      SH_DEBUG_PRINT("Connected to:");
-      SH_DEBUG_PRINTLN( ssid );
-      SH_DEBUG_PRINT( "IP address: " );
-      SH_DEBUG_PRINTLN( WiFi.localIP() );
-
-      //Set up MDNS
-      if (!MDNS.begin("pulse-eco")) {
-        SH_DEBUG_PRINTLN("Error setting up MDNS responder!");
+      // Wait for connection
+      boolean toggleLed = false;
+      int numTries = 200;
+      while (WiFi.status() != WL_CONNECTED && --numTries > 0) {
+        delay (250);
+        SH_DEBUG_PRINT(".");
+        toggleLed = !toggleLed;
+        //digitalWrite(STATUS_LED_PIN, toggleLed);
       }
-      MDNS.addService("http", "tcp", 80);
 
-      //Set up status respond
-      server.on("/", HTTP_GET, handleStatusGet);
-      server.on("/check", HTTP_GET, handleStatusCheck);
-      server.on("/values", HTTP_GET, handleStatusValues);
-      server.on("/valuesJson", HTTP_GET, handleStatusValuesJSON);
-      server.on("/reboot", HTTP_POST, handleReboot);
-      server.on("/reset", HTTP_GET, handleResetRequest);
-      server.on("/reset", HTTP_POST, handleResetResult);
-      server.onNotFound(handleStatusGet);
-      server.begin();
+      if (WiFi.status() != WL_CONNECTED) {
+        SH_DEBUG_PRINT("Undable to connect to the network: ");
+        SH_DEBUG_PRINTLN( ssid );
+        status = 0; //should be reconsidered what this means. LoRaWAN should be OK but wifi setup fails. can potentailly lead to configuration deadlock...
+        //should start working in AP mode technically, but with different SSID and same password. retry after couple of sessions or so.
+        //same logic should probably happen if it get's disconnected for some reason, so technically this should happen in a back channel.
 
+        //digitalWrite(STATUS_LED_PIN, LOW);
+      } else {
+        //Connected to the network
+        SH_DEBUG_PRINT("Connected to:");
+        SH_DEBUG_PRINTLN( ssid );
+        SH_DEBUG_PRINT( "IP address: " );
+        SH_DEBUG_PRINTLN( WiFi.localIP() );
+
+        //Set up MDNS
+        if (!MDNS.begin("pulse-eco")) {
+          SH_DEBUG_PRINTLN("Error setting up MDNS responder!");
+        }
+        MDNS.addService("http", "tcp", 80);
+
+        //Set up status respond
+        server.on("/", HTTP_GET, handleStatusGet);
+        server.on("/check", HTTP_GET, handleStatusCheck);
+        server.on("/values", HTTP_GET, handleStatusValues);
+        server.on("/valuesJson", HTTP_GET, handleStatusValuesJSON);
+        server.on("/reboot", HTTP_POST, handleReboot);
+        server.on("/reset", HTTP_GET, handleResetRequest);
+        server.on("/reset", HTTP_POST, handleResetResult);
+        server.onNotFound(handleStatusGet);
+        server.begin();
+      }
+ 
+      doLoRaWAN();
+      isOkSetup = true;
+      SH_DEBUG_PRINTLN("Joined network, waiting for modem...");
     }
 
-    doLoRaWAN();
-    isOkSetup = true;
-    SH_DEBUG_PRINTLN("Joined network, waiting for modem...");
-  }
+    if (status == 0) {
+      //Input params
+      //Start up the web server
+      SH_DEBUG_PRINTLN("Setting up configuration web server");
+      WiFi.disconnect();
+      WiFi.mode(WIFI_AP);
 
-  if (status == 0) {
-    //Input params
-    //Start up the web server
-    SH_DEBUG_PRINTLN("Setting up configuration web server");
-    WiFi.disconnect();
-    WiFi.mode(WIFI_AP);
+      uint8_t mac[WL_MAC_ADDR_LENGTH];
+      WiFi.softAPmacAddress(mac);
+      String macID = String(mac[WL_MAC_ADDR_LENGTH - 2], HEX) +
+                     String(mac[WL_MAC_ADDR_LENGTH - 1], HEX);
+      macID.toUpperCase();
+      String AP_NameString = "PulseEcoSensor-" + macID;
 
-    uint8_t mac[WL_MAC_ADDR_LENGTH];
-    WiFi.softAPmacAddress(mac);
-    String macID = String(mac[WL_MAC_ADDR_LENGTH - 2], HEX) +
-                   String(mac[WL_MAC_ADDR_LENGTH - 1], HEX);
-    macID.toUpperCase();
-    String AP_NameString = "PulseEcoSensor-" + macID;
+      char AP_NameChar[AP_NameString.length() + 1];
+      memset(AP_NameChar, 0, AP_NameString.length() + 1);
 
-    char AP_NameChar[AP_NameString.length() + 1];
-    memset(AP_NameChar, 0, AP_NameString.length() + 1);
+      for (int i = 0; i < AP_NameString.length(); i++)
+        AP_NameChar[i] = AP_NameString.charAt(i);
 
-    for (int i = 0; i < AP_NameString.length(); i++)
-      AP_NameChar[i] = AP_NameString.charAt(i);
+      WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
+      WiFi.softAP(AP_NameChar);
+      delay(500);
 
-    WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
-    WiFi.softAP(AP_NameChar);
-    delay(500);
+      server.on("/", HTTP_GET, handleGetHomepage);
+      server.on("/wifi", HTTP_GET, handleGetWifi);
+      server.on("/lorawan", HTTP_GET, handleGetLorawan);
+      server.on("/wifiConfig", HTTP_POST, handlePostWifi);
+      server.on("/loraWanConfig", HTTP_POST, handlePostLorawan);
+      server.onNotFound(handleGetHomepage);
 
-    server.on("/", HTTP_GET, handleGetHomepage);
-    server.on("/wifi", HTTP_GET, handleGetWifi);
-    server.on("/lorawan", HTTP_GET, handleGetLorawan);
-    server.on("/wifiConfig", HTTP_POST, handlePostWifi);
-    server.on("/loraWanConfig", HTTP_POST, handlePostLorawan);
-    server.onNotFound(handleGetHomepage);
-
-    server.begin();
-    SH_DEBUG_PRINTLN("HTTP server started");
-    SH_DEBUG_PRINT("AP IP address: ");
-    SH_DEBUG_PRINTLN(apIP);
-
-  }
-#else
-  status = 1;
-#endif
+      server.begin();
+      SH_DEBUG_PRINTLN("HTTP server started");
+      SH_DEBUG_PRINT("AP IP address: ");
+      SH_DEBUG_PRINTLN(apIP);
+    }
+  #else
+    status = 1;
+  #endif
 
   //wait a bit before your start
   delayWithDecency(2000);
   digitalWrite(13, LOW);
   displayInitScreen(true);
-
 }
 
 // Counters
@@ -695,52 +692,52 @@ void loop() {
         if (hasBME680) {
           url += "&gasresistance=" + String(gasResistance);
         }
-#ifdef DEBUG_PROFILE
-        SH_DEBUG_PRINT("Invoking: ");
-        SH_DEBUG_PRINTLN(url);
-#endif
+        #ifdef DEBUG_PROFILE
+          SH_DEBUG_PRINT("Invoking: ");
+          SH_DEBUG_PRINTLN(url);
+        #endif
 
-#ifndef NO_CONNECTION_PROFILE
-        SH_DEBUG_PRINT("connecting to ");
-        SH_DEBUG_PRINTLN(host);
-        if (!client.connect(host, 443)) {
-          SH_DEBUG_PRINTLN("Connection failed. Restarting");
-          ESP.restart();
-          return;
-        }
-        String userAgent = "WIFI_SENSOR_V2_1";
-#ifdef WITH_HOST_VERIFICATION
-        userAgent = userAgent + "_V";
-        if (client.verify(fingerprint, host)) {
-          SH_DEBUG_PRINTLN("certificate matches");
-        } else {
-          SH_DEBUG_PRINTLN("certificate doesn't match! Restarting");
-          ESP.restart();
-        }
-#else
-        userAgent = userAgent + "_U";
-#endif
-        client.print(String("GET ") + url + " HTTP/1.1\r\n" +
-                     "Host: " + host + "\r\n" +
-                     "User-Agent: " + userAgent + "\r\n" +
-                     "Connection: close\r\n\r\n");
-
-        SH_DEBUG_PRINTLN("HTTPS request sent");
-        while (client.connected()) {
-          String line = client.readStringUntil('\n');
-          if (line == "\r") {
-            SH_DEBUG_PRINTLN("HTTP Headers received");
-            break;
+        #ifndef NO_CONNECTION_PROFILE
+          SH_DEBUG_PRINT("connecting to ");
+          SH_DEBUG_PRINTLN(host);
+          if (!client.connect(host, 443)) {
+            SH_DEBUG_PRINTLN("Connection failed. Restarting");
+            ESP.restart();
+            return;
           }
-        }
-        String line = client.readStringUntil('\n');
-        if (line.startsWith("OK")) {
-          SH_DEBUG_PRINTLN("Transmission successfull!");
-          dataPacketsSentCount++;
-        } else {
-          SH_DEBUG_PRINTLN("Transmission failed!");
-        }
-#endif
+          String userAgent = "WIFI_SENSOR_V2_1";
+          #ifdef WITH_HOST_VERIFICATION
+            userAgent = userAgent + "_V";
+            if (client.verify(fingerprint, host)) {
+              SH_DEBUG_PRINTLN("certificate matches");
+            } else {
+              SH_DEBUG_PRINTLN("certificate doesn't match! Restarting");
+              ESP.restart();
+            }
+          #else
+            userAgent = userAgent + "_U";
+          #endif
+          client.print(String("GET ") + url + " HTTP/1.1\r\n" +
+                      "Host: " + host + "\r\n" +
+                      "User-Agent: " + userAgent + "\r\n" +
+                      "Connection: close\r\n\r\n");
+
+          SH_DEBUG_PRINTLN("HTTPS request sent");
+          while (client.connected()) {
+            String line = client.readStringUntil('\n');
+            if (line == "\r") {
+              SH_DEBUG_PRINTLN("HTTP Headers received");
+              break;
+            }
+          }
+          String line = client.readStringUntil('\n');
+          if (line.startsWith("OK")) {
+            SH_DEBUG_PRINTLN("Transmission successfull!");
+            dataPacketsSentCount++;
+          } else {
+            SH_DEBUG_PRINTLN("Transmission failed!");
+          }
+      #endif
       }
 
       if (status == 2 && status == 3 && !inSending) {
@@ -800,13 +797,13 @@ void loop() {
           SH_DEBUG_PRINT(" ");
         }
         SH_DEBUG_PRINTLN("");
-#ifndef NO_CONNECTION_PROFILE
-        // Send it off
-        //ttn.sendBytes(packet, sizeof(packet));
-        // Start job
-        inSending = true;
-        do_send(&sendjob);
-#endif
+        #ifndef NO_CONNECTION_PROFILE
+          // Send it off
+          //ttn.sendBytes(packet, sizeof(packet));
+          // Start job
+          inSending = true;
+          do_send(&sendjob);
+        #endif
       }
 
       //reset
@@ -861,9 +858,9 @@ void handlePostWifi() {
       //It's ok
 
       SH_DEBUG_PRINTLN("Storing data in EEPROM:");
-#ifdef DEBUG_PROFILE
-      SH_DEBUG_PRINTLN(data);
-#endif
+      #ifdef DEBUG_PROFILE
+        SH_DEBUG_PRINTLN(data);
+      #endif
       for (int i = 0; i < data.length(); i++) {
         EEPROM.write(i, (byte)data[i]);
       }
@@ -913,9 +910,9 @@ void handlePostLorawan() {
       //It's ok
 
       SH_DEBUG_PRINTLN("Storing data in EEPROM:");
-#ifdef DEBUG_PROFILE
-      SH_DEBUG_PRINTLN(data);
-#endif
+      #ifdef DEBUG_PROFILE
+        SH_DEBUG_PRINTLN(data);
+      #endif
       for (int i = 0; i < data.length(); i++) {
         EEPROM.write(i, (byte)data[i]);
       }
@@ -1047,11 +1044,11 @@ void handleResetResult() {
 void delayWithDecency(int units) {
   for (int i = 0; i < units / 100; i++) {
     delay(100);
-#ifndef NO_CONNECTION_PROFILE
-    if (status == 2 || status == 3) {
-      os_runloop_once();
-    }
-#endif
+    #ifndef NO_CONNECTION_PROFILE
+      if (status == 2 || status == 3) {
+        os_runloop_once();
+      }
+    #endif
   }
 }
 
@@ -1137,77 +1134,77 @@ void doLoRaWAN() {
 
   // Set static session parameters. Instead of dynamically establishing a session
   // by joining the network, precomputed session parameters are be provided.
-#ifdef PROGMEM
-  // On AVR, these values are stored in flash and only copied to RAM
-  // once. Copy them to a temporary buffer here, LMIC_setSession will
-  // copy them into a buffer of its own again.
-  uint8_t appskey[sizeof(APPSKEY)];
-  uint8_t nwkskey[sizeof(NWKSKEY)];
-  memcpy_P(appskey, APPSKEY, sizeof(APPSKEY));
-  memcpy_P(nwkskey, NWKSKEY, sizeof(NWKSKEY));
-  LMIC_setSession (0x13, DEVADDR, nwkskey, appskey);
-#else
-  // If not running an AVR with PROGMEM, just use the arrays directly
-  LMIC_setSession (0x13, DEVADDR, NWKSKEY, APPSKEY);
-#endif
+  #ifdef PROGMEM
+    // On AVR, these values are stored in flash and only copied to RAM
+    // once. Copy them to a temporary buffer here, LMIC_setSession will
+    // copy them into a buffer of its own again.
+    uint8_t appskey[sizeof(APPSKEY)];
+    uint8_t nwkskey[sizeof(NWKSKEY)];
+    memcpy_P(appskey, APPSKEY, sizeof(APPSKEY));
+    memcpy_P(nwkskey, NWKSKEY, sizeof(NWKSKEY));
+    LMIC_setSession (0x13, DEVADDR, nwkskey, appskey);
+  #else
+    // If not running an AVR with PROGMEM, just use the arrays directly
+    LMIC_setSession (0x13, DEVADDR, NWKSKEY, APPSKEY);
+  #endif
 
-#if defined(CFG_eu868)
-  // Set up the channels used by the Things Network, which corresponds
-  // to the defaults of most gateways. Without this, only three base
-  // channels from the LoRaWAN specification are used, which certainly
-  // works, so it is good for debugging, but can overload those
-  // frequencies, so be sure to configure the full frequency range of
-  // your network here (unless your network autoconfigures them).
-  // Setting up channels should happen after LMIC_setSession, as that
-  // configures the minimal channel set. The LMIC doesn't let you change
-  // the three basic settings, but we show them here.
-  LMIC_setupChannel(0, 868100000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
-  LMIC_setupChannel(1, 868300000, DR_RANGE_MAP(DR_SF12, DR_SF7B), BAND_CENTI);      // g-band
-  LMIC_setupChannel(2, 868500000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
-  LMIC_setupChannel(3, 867100000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
-  LMIC_setupChannel(4, 867300000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
-  LMIC_setupChannel(5, 867500000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
-  LMIC_setupChannel(6, 867700000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
-  LMIC_setupChannel(7, 867900000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
-  LMIC_setupChannel(8, 868800000, DR_RANGE_MAP(DR_FSK,  DR_FSK),  BAND_MILLI);      // g2-band
-  // TTN defines an additional channel at 869.525Mhz using SF9 for class B
-  // devices' ping slots. LMIC does not have an easy way to define set this
-  // frequency and support for class B is spotty and untested, so this
-  // frequency is not configured here.
-#elif defined(CFG_us915) || defined(CFG_au915)
-  // NA-US and AU channels 0-71 are configured automatically
-  // but only one group of 8 should (a subband) should be active
-  // TTN recommends the second sub band, 1 in a zero based count.
-  // https://github.com/TheThingsNetwork/gateway-conf/blob/master/US-global_conf.json
-  LMIC_selectSubBand(1);
-#elif defined(CFG_as923)
-  // Set up the channels used in your country. Only two are defined by default,
-  // and they cannot be changed.  Use BAND_CENTI to indicate 1% duty cycle.
-  // LMIC_setupChannel(0, 923200000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);
-  // LMIC_setupChannel(1, 923400000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);
+  #if defined(CFG_eu868)
+    // Set up the channels used by the Things Network, which corresponds
+    // to the defaults of most gateways. Without this, only three base
+    // channels from the LoRaWAN specification are used, which certainly
+    // works, so it is good for debugging, but can overload those
+    // frequencies, so be sure to configure the full frequency range of
+    // your network here (unless your network autoconfigures them).
+    // Setting up channels should happen after LMIC_setSession, as that
+    // configures the minimal channel set. The LMIC doesn't let you change
+    // the three basic settings, but we show them here.
+    LMIC_setupChannel(0, 868100000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
+    LMIC_setupChannel(1, 868300000, DR_RANGE_MAP(DR_SF12, DR_SF7B), BAND_CENTI);      // g-band
+    LMIC_setupChannel(2, 868500000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
+    LMIC_setupChannel(3, 867100000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
+    LMIC_setupChannel(4, 867300000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
+    LMIC_setupChannel(5, 867500000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
+    LMIC_setupChannel(6, 867700000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
+    LMIC_setupChannel(7, 867900000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
+    LMIC_setupChannel(8, 868800000, DR_RANGE_MAP(DR_FSK,  DR_FSK),  BAND_MILLI);      // g2-band
+    // TTN defines an additional channel at 869.525Mhz using SF9 for class B
+    // devices' ping slots. LMIC does not have an easy way to define set this
+    // frequency and support for class B is spotty and untested, so this
+    // frequency is not configured here.
+  #elif defined(CFG_us915) || defined(CFG_au915)
+    // NA-US and AU channels 0-71 are configured automatically
+    // but only one group of 8 should (a subband) should be active
+    // TTN recommends the second sub band, 1 in a zero based count.
+    // https://github.com/TheThingsNetwork/gateway-conf/blob/master/US-global_conf.json
+    LMIC_selectSubBand(1);
+  #elif defined(CFG_as923)
+    // Set up the channels used in your country. Only two are defined by default,
+    // and they cannot be changed.  Use BAND_CENTI to indicate 1% duty cycle.
+    // LMIC_setupChannel(0, 923200000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);
+    // LMIC_setupChannel(1, 923400000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);
 
-  // ... extra definitions for channels 2..n here
-#elif defined(CFG_kr920)
-  // Set up the channels used in your country. Three are defined by default,
-  // and they cannot be changed. Duty cycle doesn't matter, but is conventionally
-  // BAND_MILLI.
-  // LMIC_setupChannel(0, 922100000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_MILLI);
-  // LMIC_setupChannel(1, 922300000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_MILLI);
-  // LMIC_setupChannel(2, 922500000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_MILLI);
+    // ... extra definitions for channels 2..n here
+  #elif defined(CFG_kr920)
+    // Set up the channels used in your country. Three are defined by default,
+    // and they cannot be changed. Duty cycle doesn't matter, but is conventionally
+    // BAND_MILLI.
+    // LMIC_setupChannel(0, 922100000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_MILLI);
+    // LMIC_setupChannel(1, 922300000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_MILLI);
+    // LMIC_setupChannel(2, 922500000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_MILLI);
 
-  // ... extra definitions for channels 3..n here.
-#elif defined(CFG_in866)
-  // Set up the channels used in your country. Three are defined by default,
-  // and they cannot be changed. Duty cycle doesn't matter, but is conventionally
-  // BAND_MILLI.
-  // LMIC_setupChannel(0, 865062500, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_MILLI);
-  // LMIC_setupChannel(1, 865402500, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_MILLI);
-  // LMIC_setupChannel(2, 865985000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_MILLI);
+    // ... extra definitions for channels 3..n here.
+  #elif defined(CFG_in866)
+    // Set up the channels used in your country. Three are defined by default,
+    // and they cannot be changed. Duty cycle doesn't matter, but is conventionally
+    // BAND_MILLI.
+    // LMIC_setupChannel(0, 865062500, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_MILLI);
+    // LMIC_setupChannel(1, 865402500, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_MILLI);
+    // LMIC_setupChannel(2, 865985000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_MILLI);
 
-  // ... extra definitions for channels 3..n here.
-#else
-# error Region not supported
-#endif
+    // ... extra definitions for channels 3..n here.
+  #else
+  # error Region not supported
+  #endif
 
   // Disable link check validation
   LMIC_setLinkCheckMode(0);
@@ -1343,21 +1340,21 @@ void measureNoise() {
 
   noiseTotal += currentSessionNoise;
 
-#ifdef NO_CONNECTION_PROFILE
-  noiseMeasureLength = millis() - noiseMeasureLength;
-  SH_DEBUG_PRINT("Noise measurement took: ");
-  SH_DEBUG_PRINT_DEC(noiseMeasureLength, DEC);
-  SH_DEBUG_PRINT("ms with ");
-  SH_DEBUG_PRINT_DEC(NUM_NOISE_SAMPLES, DEC);
-  SH_DEBUG_PRINT(" samples. Minumum = ");
-  SH_DEBUG_PRINT_DEC(noiseSessionMin, DEC);
-  SH_DEBUG_PRINT(", Maxiumum = ");
-  SH_DEBUG_PRINT_DEC(noiseSessionMax, DEC);
-  SH_DEBUG_PRINT(" samples. Value = ");
-  SH_DEBUG_PRINT_DEC(currentSessionNoise, DEC);
-  SH_DEBUG_PRINT(", normalized: ");
-  SH_DEBUG_PRINTLN_DEC(currentSessionNoise / 4, DEC);
-#endif
+  #ifdef NO_CONNECTION_PROFILE
+    noiseMeasureLength = millis() - noiseMeasureLength;
+    SH_DEBUG_PRINT("Noise measurement took: ");
+    SH_DEBUG_PRINT_DEC(noiseMeasureLength, DEC);
+    SH_DEBUG_PRINT("ms with ");
+    SH_DEBUG_PRINT_DEC(NUM_NOISE_SAMPLES, DEC);
+    SH_DEBUG_PRINT(" samples. Minumum = ");
+    SH_DEBUG_PRINT_DEC(noiseSessionMin, DEC);
+    SH_DEBUG_PRINT(", Maxiumum = ");
+    SH_DEBUG_PRINT_DEC(noiseSessionMax, DEC);
+    SH_DEBUG_PRINT(" samples. Value = ");
+    SH_DEBUG_PRINT_DEC(currentSessionNoise, DEC);
+    SH_DEBUG_PRINT(", normalized: ");
+    SH_DEBUG_PRINTLN_DEC(currentSessionNoise / 4, DEC);
+  #endif
 }
 
 // Method to read temperature, humidity, pressure, and gas resistance
