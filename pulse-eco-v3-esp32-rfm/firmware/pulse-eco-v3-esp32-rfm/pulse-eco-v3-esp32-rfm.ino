@@ -1302,12 +1302,7 @@ void measureNoise() {
 
 // Method to read temperature, humidity, pressure, and gas resistance
 void readEnvironmentSensors() {
-  int countTempHumReadouts = 2;
-  temp = 0;
-  humidity = 0;
-  pressure = 0;
-  altitude = 0;
-  gasResistance = 0;
+  int countTempHumReadouts = 5;
 
   while (--countTempHumReadouts > 0) {
     if (hasBME680) {
@@ -1339,24 +1334,28 @@ void readEnvironmentSensors() {
     }
   }
 
-  //  if (countTempHumReadouts <= 0) {
-  //    //failed to read temp/hum/pres/gas
-  //    //disable BME sensors
-  //    hasBME680 = false;
-  //    hasBME280 = false;
-  //  }
+    if (countTempHumReadouts <= 0) {
+      //failed to read temp/hum/pres/gas
+      //disable BME sensors
+      hasBME680 = false;
+      hasBME280 = false;
+    }
 }
 
 // Method to measure PM10 and PM2.5 using an SPS30 sensor
 void measurePM() {
+  int countPMReadouts = 5;
   struct sps30_measurement m;
   char serial[SPS30_MAX_SERIAL_LEN];
   uint16_t data_ready;
 
   sps30_wake_up();
+  delayWithDecency(15000);
 
-  do {
+  while (--countPMReadouts > 0) {
+
     operationResult = sps30_read_data_ready(&data_ready);
+    
     if (operationResult < 0) {
       SH_DEBUG_PRINTLN("error reading data-ready flag: ");
       SH_DEBUG_PRINTLNln(operationResult);
@@ -1365,7 +1364,7 @@ void measurePM() {
     else
       break;
     delay(100); /* retry in 100ms */
-  } while (1);
+  }
 
   operationResult = sps30_read_measurement(&m);
   if (operationResult < 0) {
