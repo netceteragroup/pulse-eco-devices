@@ -35,6 +35,8 @@
 
 #define SEALEVELPRESSURE_HPA (1013.25)
 
+typedef uint8_t u1_t;
+
 #define LW_DEVADDR 0x00000000
 #define LW_NWKSKEY { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }
 #define LW_APPSKEY { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }
@@ -42,21 +44,26 @@
 
 #define WL_MAC_ADDR_LENGTH 6
 
+#define debugSerial Serial
+
 //Development / production profiles
 #define NO_CONNECTION_PROFILE 1
 #define DEBUG_PROFILE 1
 #ifdef DEBUG_PROFILE
-  #define NUM_MEASURE_SESSIONS 100
+  #define NUM_MEASURE_SESSIONS 40
   #define CYCLE_DELAY 2000
+  #define SH_DEBUG_PRINTLN(a) debugSerial.println(a)
+  #define SH_DEBUG_PRINT(a) debugSerial.print(a)
+  #define SH_DEBUG_PRINT_DEC(a,b) debugSerial.print(a,b)
+  #define SH_DEBUG_PRINTLN_DEC(a,b) debugSerial.println(a,b)
 #else
-  #define NUM_MEASURE_SESSIONS 30
-  #define CYCLE_DELAY 30000
+  #define NUM_MEASURE_SESSIONS 90
+  #define CYCLE_DELAY 10000
+  #define SH_DEBUG_PRINTLN(a) 
+  #define SH_DEBUG_PRINT(a) 
+  #define SH_DEBUG_PRINT_DEC(a,b) 
+  #define SH_DEBUG_PRINTLN_DEC(a,b) 
 #endif
-#define debugSerial Serial
-#define SH_DEBUG_PRINTLN(a) SH_DEBUG_PRINTLNln(a)
-#define SH_DEBUG_PRINT(a) SH_DEBUG_PRINTLN(a)
-#define SH_DEBUG_PRINT_DEC(a,b) SH_DEBUG_PRINTLN(a,b)
-#define SH_DEBUG_PRINTLN_DEC(a,b) SH_DEBUG_PRINTLNln(a,b)
 
 #define OLED_SDA 21
 #define OLED_SCL 22
@@ -74,8 +81,8 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 #define NUM_NOISE_SAMPLES 1200
 
 //Init global objects
-
 TwoWire I2CBME = TwoWire(0);
+
 Adafruit_BME680 bme680; // I2C
 Adafruit_BME280 bme280; // I2C
 WebServer server(80);
@@ -119,9 +126,9 @@ byte valuesMask = 0;
 // It adds a tad more security, but you'll need to reflash your device more often
 //#define WITH_HOST_VERIFICATION 1
 
-u1_t NWKSKEY[16] = LW_NWKSKEY;
-u1_t APPSKEY[16] = LW_APPSKEY;
-u4_t DEVADDR = LW_DEVADDR;
+u1_t NWKSKEY[16];
+u1_t APPSKEY[16];
+unsigned long DEVADDR;
 
 
 // These callbacks are only used in over-the-air activation, so they are
@@ -286,7 +293,6 @@ void setup() {
   }
 
   displayInitScreen(false);
-  SH_DEBUG_PRINTLN("Init SPS sensor.");
 
   //Init the temp/hum sensor
   // Set up oversampling and filter initialization
@@ -327,7 +333,9 @@ void setup() {
 
   delay(2000);
 
-  // Init the pm sensor
+  // Init the ЅРЅ sensor
+  SH_DEBUG_PRINTLN("Init SPS sensor.");
+
   uint8_t auto_clean_days = 4;
 
   sensirion_i2c_init();
@@ -342,7 +350,7 @@ void setup() {
 
   if (operationResult) {
     SH_DEBUG_PRINTLN("error setting the auto-clean interval: ");
-    SH_DEBUG_PRINTLNln(operationResult);
+    SH_DEBUG_PRINTLN(operationResult);
   }
 
   operationResult = sps30_start_measurement();
@@ -1073,11 +1081,21 @@ void doLoRaWAN() {
   // LMIC init
   os_init();
   // Reset the MAC state. Session and pending data transfers will be discarded.
-  LMIC_reset();
 
   // Set static session parameters. Instead of dynamically establishing a session
   // by joining the network, precomputed session parameters are be provided.
   #ifdef PROGMEM
+
+    // Convert strings to C-style strings
+    const char* devAddrCStr = devaddr.c_str();
+    const char* nwkSKeyCStr = nwksKey.c_str();
+    const char* appSKeyCStr = appsKey.c_str();
+
+    hexStringToByteArray(nwkSKeyCStr, NWKSKEY, 16); // Convert NWKSKEY
+    hexStringToByteArray(appSKeyCStr, APPSKEY, 16); // Convert APPSKEY
+    sscanf(devAddrCStr, "%8lx", &DEVADDR);
+
+    
     // On AVR, these values are stored in flash and only copied to RAM
     // once. Copy them to a temporary buffer here, LMIC_setSession will
     // copy them into a buffer of its own again.
@@ -1085,7 +1103,8 @@ void doLoRaWAN() {
     uint8_t nwkskey[sizeof(NWKSKEY)];
     memcpy_P(appskey, APPSKEY, sizeof(APPSKEY));
     memcpy_P(nwkskey, NWKSKEY, sizeof(NWKSKEY));
-    LMIC_setSession (0x13, DEVADDR, nwkskey, appskey);
+
+    LMIC_setSession (0x13, (u4_t)DEVADDR, NWKSKEY, APPSKEY);
   #else
     // If not running an AVR with PROGMEM, just use the arrays directly
     LMIC_setSession (0x13, DEVADDR, NWKSKEY, APPSKEY);
@@ -1358,7 +1377,7 @@ void measurePM() {
     
     if (operationResult < 0) {
       SH_DEBUG_PRINTLN("error reading data-ready flag: ");
-      SH_DEBUG_PRINTLNln(operationResult);
+      SH_DEBUG_PRINTLN(operationResult);
     } else if (!data_ready)
       SH_DEBUG_PRINTLN("data not ready, no new measurement available");
     else
@@ -1450,4 +1469,10 @@ short median(short sorted[], int m) //calculate the median
   } else {
     return (sorted[(m / 2) - 1] + sorted[m / 2]) / 2; //If the number of data points is even, return avg of the middle two numbers.
   }
+}
+
+void hexStringToByteArray(const char* hexString, uint8_t* byteArray, int byteArraySize) {
+    for (int i = 0; i < byteArraySize; i++) {
+        sscanf(&hexString[i * 2], "%2hhx", &byteArray[i]);
+    }
 }
