@@ -1,9 +1,15 @@
 #include <EEPROM.h>
 #include <SoftwareSerial.h>
 #include "Sds011.h"
+#include <ESP8266mDNS.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecure.h> 
 #include <ESP8266WebServer.h>
+#include "configurePage.h"
+#include "statusPage.h"
+#include "rebootPage.h"
+#include "resetRequestPage.h"
+#include "resetResultPage.h"
 
 // General def for adafruit sensor
 #include <Adafruit_Sensor.h>
@@ -62,6 +68,7 @@ String password="";
 int status = -1;
 bool hasBME680 = false;
 bool hasBME280 = false;
+bool pm10SensorOK = true;
 
 // TCP + TLS
 IPAddress apIP(192, 168, 1, 1);
@@ -211,6 +218,7 @@ void setup() {
       ssid.toCharArray(ssidBuf,ssid.length()+1);
       char passBuf[password.length()+1];
       password.toCharArray(passBuf,password.length()+1);
+      WiFi.disconnect();
       WiFi.mode(WIFI_STA);
       WiFi.begin ( ssidBuf, passBuf );
       SH_DEBUG_PRINT("SSID: ");
@@ -241,6 +249,25 @@ void setup() {
         SH_DEBUG_PRINTLN( ssid );
         SH_DEBUG_PRINT( "IP address: " );
         SH_DEBUG_PRINTLN( WiFi.localIP() );
+        
+        //Set up MDNS
+        if (!MDNS.begin("pulse-eco")) {
+          SH_DEBUG_PRINTLN("Error setting up MDNS responder!");
+        }
+        MDNS.addService("http", "tcp", 80);
+
+        //Set up status respond
+        server.on("/", HTTP_GET, handleStatusGet);
+        server.on("/check", HTTP_GET, handleStatusCheck);
+        server.on("/values", HTTP_GET, handleStatusValues);
+        server.on("/valuesJson", HTTP_GET, handleStatusValuesJSON);
+        server.on("/reboot", HTTP_POST, handleReboot);
+        server.on("/reset", HTTP_GET, handleResetRequest);
+        server.on("/reset", HTTP_POST, handleResetResult);
+        server.onNotFound(handleStatusGet);
+        server.begin();
+
+        
         digitalWrite(STATUS_LED_PIN, HIGH);
       }
     }
@@ -285,23 +312,44 @@ void setup() {
   
 
   //wait a bit before your start
-  delay(2000);
+  delayWithServerGrace(2000);
 }
+
+int dataPacketsSentCount = 0;
 
 int loopCycleCount = 0;
 int noiseTotal = 0;
 int pm10 = 0;
 int pm25 = 0;
-
+int temp = 0; 
+int humidity = 0;
+int pressure = 0;
+int altitude = 0;
+int gasResistance = 0;
+int noise = 0;
 
 // No Connection counter
 int noConnectionLoopCount = 0;
 
+bool rebootOnNextLoop = false;
+bool resetOnNextLoop = false;
 
 void loop() {
   if (status == 1) {
+    if (rebootOnNextLoop) {
+      rebootOnNextLoop = false;
+      ESP.restart();
+    }
+
+    if (resetOnNextLoop) {
+      resetOnNextLoop = false;
+      wipeSettings();
+      ESP.restart();
+    }
+    
     //wait
-    delay(CYCLE_DELAY);
+    server.handleClient();
+    delayWithServerGrace(CYCLE_DELAY);
 
     //increase counter
     loopCycleCount++;
@@ -355,12 +403,14 @@ void loop() {
     if (loopCycleCount >= NUM_MEASURE_SESSIONS) {
       //done measuring
       //measure dust, temp, hum and send data.
+
+      SH_DEBUG_PRINTLN("Starting with the wrapping session.");
       int countTempHumReadouts = 10;
-      int temp = 0; 
-      int humidity = 0;
-      int pressure = 0;
-      int altitude = 0;
-      int gasResistance = 0;
+      temp = 0; 
+      humidity = 0;
+      pressure = 0;
+      altitude = 0;
+      gasResistance = 0;
       while (--countTempHumReadouts > 0) {
         if (hasBME680) {
           if (! bme680.performReading()) {
@@ -384,7 +434,7 @@ void loop() {
         }
         if (humidity <= 0 || humidity > 100 || temp > 100 || temp < -100 || pressure <= 0) {
           //fake result, pause and try again.
-          delay(3000);
+          delayWithServerGrace(3000);
         } else {
           // OK result
           break;
@@ -398,16 +448,16 @@ void loop() {
         hasBME280 = false;
       }
       
-      int noise = ((int)noiseTotal / loopCycleCount) / 4 + 10; //mapped to 0-255
+      noise = ((int)noiseTotal / loopCycleCount) / 4 + 10; //mapped to 0-255
       
-      bool pm10SensorOK = true;
+      pm10SensorOK = true;
       //sdsSerial.listen();
       sdsSensor.set_sleep(false);
       sdsSensor.set_mode(sds011::QUERY);
       //wait just enough for it to get back on its senses
-      delay(15000);
+      delayWithServerGrace(15000);
       pm10SensorOK = sdsSensor.query_data_auto(&pm25, &pm10, 10);
-      delay(100);
+      delayWithServerGrace(100);
       sdsSensor.set_sleep(true);
 
       if (pm10SensorOK) {
@@ -498,6 +548,7 @@ void loop() {
         String line = client.readStringUntil('\n');
         if (line.startsWith("OK")) {
           SH_DEBUG_PRINTLN("Transmission successfull!");
+          dataPacketsSentCount++;
         } else {
           SH_DEBUG_PRINTLN("Transmission failed!");
         }
@@ -532,34 +583,7 @@ void loop() {
 
 //Web server params below
 void handleRootGet() {
-
-  String output = "<!DOCTYPE html> \
-<html><head><title>Configure WiFi</title>";
-  output += "<style>b ";
-  output += "body { font-family: 'Verdana'} ";
-  output += "div { font-size: 2em;} ";
-  output += "input[type='text'] { font-size: 1.5em; width: 100%;} ";
-  output += "input[type='submit'] { font-size: 1.5em; width: 100%;} ";
-  output += "input[type='radio'] { display: none;} ";
-  output += "input[type='radio'] { ";
-  output += "   height: 2.5em; width: 2.5em; display: inline-block;cursor: pointer; ";
-  output += "   vertical-align: middle; background: #FFF; border: 1px solid #d2d2d2; border-radius: 100%;} ";
-  output += "input[type='radio'] { border-color: #c2c2c2;} ";
-  output += "input[type='radio']:checked { background:gray;} ";
-  output += "</style>";
-  output += "</head> \
-<body> \
-<div style='text-align: center; font-weight: bold'>SkopjePulse node config</div> \
-<form method='post' action='/post'> \
-<div>Device key:</div> \
-<div><input type='text' name='deviceId' /><br/><br/></div> \
-<div>SSID:</div> \
-<div><input type='text' name='ssid' /><br/><br/></div> \
-<div>Password:</div> \
-<div><input type='text' name='password' /><br/><br/></div> \
-<div><input type='submit' /><div> \
-</form></body></html>";
-
+  String output = FPSTR(CONFIGURE_page);
   server.send(200, "text/html", output);
 }
 
@@ -603,14 +627,131 @@ void handleRootPost() {
       ESP.restart();
       
     } else {
-      server.send(200, "text/html", "<h1>The parameter string is too long.</h1>");
+      server.send(400, "text/html", "<h1>The parameter string is too long.</h1>");
     }
     
   } else {
-    server.send(200, "text/html", "<h1>Incorrect input. Please try again.</h1>");
+    server.send(400, "text/html", "<h1>Incorrect input. Please try again.</h1>");
   }
   
 }
+
+void wipeSettings() {
+  for (int i=0; i < 10; i++) {
+    EEPROM.write(i, (byte)0);
+  }
+  EEPROM.commit();
+  SH_DEBUG_PRINTLN("Settings removed from EEPROM. Restarting.");
+}
+
+void handleStatusCheck() {
+  String output = "1";
+  server.send(200, "text/html", output);
+}
+
+void handleStatusGet() {
+  String output = FPSTR(STATUS_page);
+  server.send(200, "text/html", output);
+}
+
+void handleStatusValues() {
+
+  String valuesString = "";
+  if (pm10SensorOK) {
+    valuesString += "pm10=" + String(pm10) + " ug/m3";
+    valuesString += ";pm25=" + String(pm25) + " ug/m3";
+    valuesString += ";sds=OK";
+  } else {
+    valuesString += "pm10=N/A";
+    valuesString += ";pm25=N/A";
+    valuesString += ";sds=missing or bad";
+  }
+      
+  if (noise > 10) {
+    valuesString += ";noise=" + String(noise);
+    valuesString += ";snoise=OK";
+  } else {
+    valuesString += ";noise=N/A";
+    valuesString += ";snoise=missing or bad";
+  }
+  if (hasBME280 || hasBME680) {
+    valuesString += ";temperature=" + String(temp) + " C";
+    valuesString += ";humidity=" + String(humidity) + " %";
+    valuesString += ";pressure=" + String(pressure) + " hPa";
+    if (hasBME280) {
+      valuesString += ";bme=280 OK";
+    } else {
+      valuesString += ";bme=680 OK";
+    }
+  } else {
+    valuesString += ";temperature=N/A";
+    valuesString += ";humidity=N/A";
+    valuesString += ";pressure=N/A";
+    valuesString += ";bme=missing or bad";
+  }
+
+  valuesString += ";network=" + ssid;
+  valuesString += ";packets=" + dataPacketsSentCount;
+
+  //stringformat: pm10,pm25,temp,hum,noise,packets,bme,sds,noise,wifi
+  
+  server.send(200, "text/html", valuesString);
+}
+
+String formJsonPair(String key, int value, bool comma) {
+  return "\"" + key + "\":" + value +  (comma ? "," : "");
+}
+
+void handleStatusValuesJSON() {
+  String valuesString = "{";
+  if (pm10SensorOK) {
+    valuesString += formJsonPair("pm10", pm10, true);
+    valuesString += formJsonPair("pm25", pm25, true);
+  } 
+      
+  if (noise > 10) {
+    valuesString += formJsonPair("noise", noise, true);
+  } 
+  if (hasBME280 || hasBME680) {
+    valuesString += formJsonPair("temperature", temp, true);
+    valuesString += formJsonPair("humidity", humidity, true);
+    valuesString += formJsonPair("pressure", pressure, true);
+    
+  } 
+
+  valuesString += formJsonPair("packets", dataPacketsSentCount, false);
+  valuesString += "}";
+
+  //stringformat: pm10,pm25,temp,hum,noise,packets,bme,sds,noise,wifi
+  
+  server.send(200, "application/json", valuesString);
+}
+
+void handleReboot() {
+  rebootOnNextLoop = true;
+  String output = FPSTR(REBOOT_page);
+  server.send(200, "text/html", output); 
+}
+
+void handleResetRequest() {
+  String output = FPSTR(RESET_REQUEST_page);
+  server.send(200, "text/html", output);
+}
+
+void handleResetResult() {
+  resetOnNextLoop = true;
+  String output = FPSTR(RESET_RESULT_page);
+  server.send(200, "text/html", output); 
+}
+        
+
+void delayWithServerGrace(int millis) {
+  for (int i=0; i<millis/100; i++) {
+    server.handleClient();
+    delay(100);
+  }
+}
+
 
 
 // Util methods below
