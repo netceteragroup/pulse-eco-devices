@@ -1,9 +1,13 @@
+
+
 #include <EEPROM.h>
 #include <SoftwareSerial.h>
 #include <ESPmDNS.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <WebServer.h>
+
+#include <math.h>
 
 #include <lmic.h>
 #include <hal/hal.h>
@@ -35,11 +39,12 @@
 
 #define SEALEVELPRESSURE_HPA (1013.25)
 
-typedef uint8_t u1_t;
 
-#define LW_DEVADDR 0x00000000
-#define LW_NWKSKEY { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }
-#define LW_APPSKEY { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }
+#define LW_DEVADDR 0x260B146F
+#define LW_NWKSKEY { 0xD0, 0x26, 0xBF, 0xEF, 0x88, 0x4F, 0x7D, 0xCA, 0x9F, 0x71, 0x28, 0xF1, 0x84, 0x2A, 0x16, 0xF6 }
+#define LW_APPSKEY { 0x5F, 0xA5, 0x6B, 0x7C, 0xD6, 0xC1, 0x1F, 0xCF, 0x6D, 0xAE, 0x60, 0xD7, 0x65, 0xC9, 0x56, 0x7C }
+
+
 #define LW_DATARATE DR_SF7
 
 #define WL_MAC_ADDR_LENGTH 6
@@ -47,18 +52,18 @@ typedef uint8_t u1_t;
 #define debugSerial Serial
 
 //Development / production profiles
-#define NO_CONNECTION_PROFILE 1
+//#define NO_CONNECTION_PROFILE 1
 #define DEBUG_PROFILE 1
 #ifdef DEBUG_PROFILE
-  #define NUM_MEASURE_SESSIONS 40
+  #define NUM_MEASURE_SESSIONS 10
   #define CYCLE_DELAY 2000
   #define SH_DEBUG_PRINTLN(a) debugSerial.println(a)
   #define SH_DEBUG_PRINT(a) debugSerial.print(a)
   #define SH_DEBUG_PRINT_DEC(a,b) debugSerial.print(a,b)
   #define SH_DEBUG_PRINTLN_DEC(a,b) debugSerial.println(a,b)
 #else
-  #define NUM_MEASURE_SESSIONS 90
-  #define CYCLE_DELAY 10000
+  #define NUM_MEASURE_SESSIONS 30
+  #define CYCLE_DELAY 30000
   #define SH_DEBUG_PRINTLN(a) 
   #define SH_DEBUG_PRINT(a) 
   #define SH_DEBUG_PRINT_DEC(a,b) 
@@ -81,7 +86,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 #define NUM_NOISE_SAMPLES 1200
 
 //Init global objects
-TwoWire I2CBME = TwoWire(0);
+TwoWire I2CBME = TwoWire(1);
 
 Adafruit_BME680 bme680; // I2C
 Adafruit_BME280 bme280; // I2C
@@ -100,9 +105,9 @@ String deviceName = "";
 
 // LoRaWAN config
 String operationMode = "";
-String devaddr = "";
-String nwksKey = "";
-String appsKey = "";
+String r_devaddr = "";
+String r_nwksKey = "";
+String r_appsKey = "";
 
 static uint8_t mydata[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0xA,};
 byte packet[13];
@@ -128,8 +133,10 @@ byte valuesMask = 0;
 
 u1_t NWKSKEY[16];
 u1_t APPSKEY[16];
-unsigned long DEVADDR;
-
+u4_t DEVADDR;
+//u1_t NWKSKEY[16] = LW_NWKSKEY;
+//u1_t APPSKEY[16] = LW_APPSKEY;
+//u4_t DEVADDR = LW_DEVADDR; 
 
 // These callbacks are only used in over-the-air activation, so they are
 // left empty here (we cannot leave them out completely unless
@@ -221,9 +228,9 @@ void discoverAndSetStatus() {
         operationMode = readFields[0];
         ssid = readFields[1];
         password = readFields[2];
-        devaddr = readFields[3];
-        nwksKey = readFields[4];
-        appsKey = readFields[5];
+        r_devaddr = readFields[3];
+        r_nwksKey = readFields[4];
+        r_appsKey = readFields[5];
       }
       validData = true;
     }
@@ -260,6 +267,10 @@ void discoverAndSetStatus() {
 void setup() {
   pinMode(ledPin, OUTPUT);
   digitalWrite(ledPin, HIGH);
+
+  adcAttachPin(NOISE_MEASURE_PIN);
+  analogSetPinAttenuation(NOISE_MEASURE_PIN, ADC_0db);
+  
   while (!debugSerial && millis() < 10000); // wait for Serial to be initialized
   debugSerial.begin(57600);
   delay(100);     // per sample code on RF_95 test
@@ -385,7 +396,7 @@ void setup() {
       uint8_t mac[WL_MAC_ADDR_LENGTH];
       WiFi.softAPmacAddress(mac);
       WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
-      WiFi.softAP(ssid, password);
+      WiFi.softAP(ssid.c_str(), password.c_str());
       delay(500);
 
       server.on("/", HTTP_GET, handleStatusGet);
@@ -473,6 +484,7 @@ int pressure = 0;
 int altitude = 0;
 int gasResistance = 0;
 int noise = 0;
+int noiseDba = 0;
 
 bool rebootOnNextLoop = false;
 bool resetOnNextLoop = false;
@@ -480,227 +492,232 @@ bool resetOnNextLoop = false;
 char hexbuffer[3];
 
 void loop() {
+  
 
-  //increase counter
-  loopCycleCount++;
-
-  if (rebootOnNextLoop) {
-    rebootOnNextLoop = false;
-    ESP.restart();
-  }
-
-  if (resetOnNextLoop) {
-    resetOnNextLoop = false;
-    wipeSettings();
-    ESP.restart();
-  }
-
-  if (status == 0) {
-    server.handleClient();
-    delay(50);
-    noConnectionLoopCount++;
-    // second 20 cycles
-    // 1 minute 60 * 20 = 1200 cycles
-    // 10 minutes 10 * 1200 = 12000  cycles
-    if (noConnectionLoopCount >= 12000) {
-      //Reboot after 10 minutes in setup mode. Might be a temp failure in the network
+  if (!inSending) {
+    //increase counter
+    loopCycleCount++;
+  
+    if (rebootOnNextLoop) {
+      rebootOnNextLoop = false;
       ESP.restart();
     }
-
-  } else {
-
-    measureNoise();
-
-    if (loopCycleCount >= NUM_MEASURE_SESSIONS) {
-      //done measuring
-      //measure dust, temp, hum and send data.
-
-      SH_DEBUG_PRINTLN("Starting with the wrapping session.");
-
-      readEnvironmentSensors();
-      noise = ((int)noiseTotal / loopCycleCount) / 4 + 10; //mapped to 0-255
-      measurePM();
-
-      if (pm10SensorOK) {
-        SH_DEBUG_PRINT("pm25: ");
-        SH_DEBUG_PRINT_DEC(pm25, DEC);
-        SH_DEBUG_PRINT(", pm10: ");
-        SH_DEBUG_PRINT_DEC(pm10, DEC);
-        SH_DEBUG_PRINT(", pm1: ");
-        SH_DEBUG_PRINT_DEC(pm1, DEC);
+  
+    if (resetOnNextLoop) {
+      resetOnNextLoop = false;
+      wipeSettings();
+      ESP.restart();
+    }
+  
+    if (status == 0) {
+      server.handleClient();
+      delay(50);
+      noConnectionLoopCount++;
+      // second 20 cycles
+      // 1 minute 60 * 20 = 1200 cycles
+      // 10 minutes 10 * 1200 = 12000  cycles
+      if (noConnectionLoopCount >= 12000) {
+        //Reboot after 10 minutes in setup mode. Might be a temp failure in the network
+        ESP.restart();
       }
-      if (noise > 10) {
-        SH_DEBUG_PRINT(", noise: ");
-        SH_DEBUG_PRINT_DEC(noise, DEC);
-      }
-      if (hasBME280 || hasBME680) {
-        SH_DEBUG_PRINT(", temp: ");
-        SH_DEBUG_PRINT_DEC(temp, DEC);
-        SH_DEBUG_PRINT(", hum: ");
-        SH_DEBUG_PRINT_DEC(humidity, DEC);
-        SH_DEBUG_PRINT(", pres: ");
-        SH_DEBUG_PRINT_DEC(pressure, DEC);
-        SH_DEBUG_PRINT(", alt: ");
-        SH_DEBUG_PRINT_DEC(altitude, DEC);
-      }
-      if (hasBME680) {
-        SH_DEBUG_PRINT(", gasresistance: ");
-        SH_DEBUG_PRINT_DEC(gasResistance, DEC);
-      }
-      SH_DEBUG_PRINTLN("");
-
-      displayValuesOnScreen();
-
-      //do the send here based on the status
-
-      if (status == 1) {
-
-        //wait
-        server.handleClient();
-        delayWithDecency(CYCLE_DELAY);
-
-        String url = "/wifipoint/store";
-        url += "?devAddr=" + deviceName;
-        url += "&version=2";
+  
+    } else {
+  
+      //wait
+      server.handleClient();
+      delayWithDecency(CYCLE_DELAY);
+  
+      measureNoise();
+  
+      if (loopCycleCount >= NUM_MEASURE_SESSIONS) {
+        //done measuring
+        //measure dust, temp, hum and send data.
+  
+        SH_DEBUG_PRINTLN("Starting with the wrapping session.");
+  
+        readEnvironmentSensors();
+        noise = ((int)noiseTotal / loopCycleCount) / 4; //mapped to 0-255
+        noiseDba = round(37.08 * log10(noise) - 14.7);
+        measurePM();
+  
         if (pm10SensorOK) {
-          url += "&pm10=" + String(pm10);
-          url += "&pm25=" + String(pm25);
-          url += "&pm25=" + String(pm1);
+          SH_DEBUG_PRINT("pm25: "); SH_DEBUG_PRINT_DEC(pm25, DEC);
+          SH_DEBUG_PRINT(", pm10: "); SH_DEBUG_PRINT_DEC(pm10, DEC);
+          SH_DEBUG_PRINT(", pm1: "); SH_DEBUG_PRINT_DEC(pm1, DEC);
         }
         if (noise > 10) {
-          url += "&noise=" + String(noise);
+          SH_DEBUG_PRINT(", noise: "); SH_DEBUG_PRINT_DEC(noise, DEC);
+          SH_DEBUG_PRINT(", noiseDba: "); SH_DEBUG_PRINT_DEC(noiseDba, DEC);
         }
         if (hasBME280 || hasBME680) {
-          url += "&temperature=" + String(temp);
-          url += "&humidity=" + String(humidity);
-          url += "&pressure=" + String(pressure);
-          url += "&altitude=" + String(altitude);
+          SH_DEBUG_PRINT(", temp: "); SH_DEBUG_PRINT_DEC(temp, DEC);
+          SH_DEBUG_PRINT(", hum: "); SH_DEBUG_PRINT_DEC(humidity, DEC);
+          SH_DEBUG_PRINT(", pres: "); SH_DEBUG_PRINT_DEC(pressure, DEC);
+          SH_DEBUG_PRINT(", alt: "); SH_DEBUG_PRINT_DEC(altitude, DEC);
         }
         if (hasBME680) {
-          url += "&gasresistance=" + String(gasResistance);
-        }
-        #ifdef DEBUG_PROFILE
-          SH_DEBUG_PRINT("Invoking: ");
-          SH_DEBUG_PRINTLN(url);
-        #endif
-
-        #ifndef NO_CONNECTION_PROFILE
-          SH_DEBUG_PRINT("connecting to ");
-          SH_DEBUG_PRINTLN(host);
-          if (!client.connect(host, 443)) {
-            SH_DEBUG_PRINTLN("Connection failed. Restarting");
-            ESP.restart();
-            return;
-          }
-          String userAgent = "WIFI_SENSOR_V2_1";
-          #ifdef WITH_HOST_VERIFICATION
-            userAgent = userAgent + "_V";
-            if (client.verify(fingerprint, host)) {
-              SH_DEBUG_PRINTLN("certificate matches");
-            } else {
-              SH_DEBUG_PRINTLN("certificate doesn't match! Restarting");
-              ESP.restart();
-            }
-          #else
-            userAgent = userAgent + "_U";
-          #endif
-          client.print(String("GET ") + url + " HTTP/1.1\r\n" +
-                      "Host: " + host + "\r\n" +
-                      "User-Agent: " + userAgent + "\r\n" +
-                      "Connection: close\r\n\r\n");
-
-          SH_DEBUG_PRINTLN("HTTPS request sent");
-          while (client.connected()) {
-            String line = client.readStringUntil('\n');
-            if (line == "\r") {
-              SH_DEBUG_PRINTLN("HTTP Headers received");
-              break;
-            }
-          }
-          String line = client.readStringUntil('\n');
-          if (line.startsWith("OK")) {
-            SH_DEBUG_PRINTLN("Transmission successfull!");
-            dataPacketsSentCount++;
-          } else {
-            SH_DEBUG_PRINTLN("Transmission failed!");
-          }
-      #endif
-      }
-
-      if (status == 2 && status == 3 && !inSending) {
-
-        int hextemp = min(max(temp + 127, 0), 255);
-        int hexhum = min(max(humidity, 0), 255);
-
-        valuesMask = 0;
-        if (pm10SensorOK) {
-          valuesMask |= (byte)1;
-        }
-        if (noise > 10) {
-          valuesMask |= (byte)2;
-        }
-        if (hasBME280 || hasBME680) {
-          valuesMask |= (byte)4;
-        }
-        if (hasBME680) {
-          //disabled for now
-          //valuesMask |= (byte)8;
-        }
-
-        //    dataframe
-        //- 1 byte: version
-        //  1 byte, to add: bitmask on values: pm10, noise, temp/hum/pres, gasres (lsb to msb)
-        //- 1 byte: temperature (offsetted 127)
-        //- 1 byte: humidity
-        //- 1 byte: noise (scaled from 0 to 255)
-        //- 2 bytes: pm10
-        //- 2 bytes: pm25
-        //- 2 bytes pressure
-        //- 2 bytes: pm1
-
-        packet[0] = 4; //version to be changed to something else
-        packet[1] = valuesMask;
-        //couple of versions shold be used, bitmask sort of present values
-        //sds
-        //temp/hum/pres
-        //gas
-        //noise
-        //maybe the first byte to have a different version number
-        //and a second one to be a mask of the used values.
-        packet[2] = (byte)hextemp;
-        packet[3] = (byte)hexhum;
-        packet[4] = (byte)noise; //noise
-        packet[5] = (byte)(pm10 / 256);
-        packet[6] = (byte)(pm10 % 256);
-        packet[7] = (byte)(pm25 / 256);
-        packet[8] = (byte)(pm25 % 256);
-        packet[9] = (byte)(pm1 / 256);
-        packet[10] = (byte)(pm1 % 256);
-        packet[11] = (byte)(pressure / 256);
-        packet[12] = (byte)(pressure % 256);
-
-        digitalWrite(ledPin, HIGH);
-        SH_DEBUG_PRINTLN("TXing: ");
-        for (int i = 0; i < 13; i++) {
-          sprintf(hexbuffer, "%02x", (int)packet[i]);
-          SH_DEBUG_PRINT(hexbuffer);
-          SH_DEBUG_PRINT(" ");
+          SH_DEBUG_PRINT(", gasresistance: "); SH_DEBUG_PRINT_DEC(gasResistance, DEC);
         }
         SH_DEBUG_PRINTLN("");
-        #ifndef NO_CONNECTION_PROFILE
-          // Send it off
-          //ttn.sendBytes(packet, sizeof(packet));
-          // Start job
-          inSending = true;
-          do_send(&sendjob);
+  
+        displayValuesOnScreen();
+  
+        //do the send here based on the status
+  
+        if (status == 1) {
+  
+          
+  
+          String url = "/wifipoint/store";
+          url += "?devAddr=" + deviceName;
+          url += "&version=2";
+          if (pm10SensorOK) {
+            url += "&pm10=" + String(pm10);
+            url += "&pm25=" + String(pm25);
+            url += "&pm25=" + String(pm1);
+          }
+          if (noise > 10) {
+            url += "&noise=" + String(noise);
+          }
+          if (hasBME280 || hasBME680) {
+            url += "&temperature=" + String(temp);
+            url += "&humidity=" + String(humidity);
+            url += "&pressure=" + String(pressure);
+            url += "&altitude=" + String(altitude);
+          }
+          if (hasBME680) {
+            url += "&gasresistance=" + String(gasResistance);
+          }
+          #ifdef DEBUG_PROFILE
+            SH_DEBUG_PRINT("Invoking: ");
+            SH_DEBUG_PRINTLN(url);
+          #endif
+  
+          #ifndef NO_CONNECTION_PROFILE
+            SH_DEBUG_PRINT("connecting to ");
+            SH_DEBUG_PRINTLN(host);
+            if (!client.connect(host, 443)) {
+              SH_DEBUG_PRINTLN("Connection failed. Restarting");
+              ESP.restart();
+              return;
+            }
+            String userAgent = "WIFI_SENSOR_V2_1";
+            #ifdef WITH_HOST_VERIFICATION
+              userAgent = userAgent + "_V";
+              if (client.verify(fingerprint, host)) {
+                SH_DEBUG_PRINTLN("certificate matches");
+              } else {
+                SH_DEBUG_PRINTLN("certificate doesn't match! Restarting");
+                ESP.restart();
+              }
+            #else
+              userAgent = userAgent + "_U";
+            #endif
+            client.print(String("GET ") + url + " HTTP/1.1\r\n" +
+                        "Host: " + host + "\r\n" +
+                        "User-Agent: " + userAgent + "\r\n" +
+                        "Connection: close\r\n\r\n");
+  
+            SH_DEBUG_PRINTLN("HTTPS request sent");
+            while (client.connected()) {
+              String line = client.readStringUntil('\n');
+              if (line == "\r") {
+                SH_DEBUG_PRINTLN("HTTP Headers received");
+                break;
+              }
+            }
+            String line = client.readStringUntil('\n');
+            if (line.startsWith("OK")) {
+              SH_DEBUG_PRINTLN("Transmission successfull!");
+              dataPacketsSentCount++;
+            } else {
+              SH_DEBUG_PRINTLN("Transmission failed!");
+            }
         #endif
+        }
+  
+        if (status == 2 || status == 3) {
+  
+          int hextemp = min(max(temp + 127, 0), 255);
+          int hexhum = min(max(humidity, 0), 255);
+  
+          valuesMask = 0;
+          if (pm10SensorOK) {
+            valuesMask |= (byte)1;
+          }
+          if (noise > 10) {
+            valuesMask |= (byte)2;
+          }
+          if (hasBME280 || hasBME680) {
+            valuesMask |= (byte)4;
+          }
+          if (hasBME680) {
+            //disabled for now
+            //valuesMask |= (byte)8;
+          }
+  
+          //    dataframe
+          //- 1 byte: version
+          //  1 byte, to add: bitmask on values: pm10, noise, temp/hum/pres, gasres (lsb to msb)
+          //- 1 byte: temperature (offsetted 127)
+          //- 1 byte: humidity
+          //- 1 byte: noise (scaled from 0 to 255)
+          //- 2 bytes: pm10
+          //- 2 bytes: pm25
+          //- 2 bytes pressure
+          //- 2 bytes: pm1
+  
+          packet[0] = 5; //version to be changed to something else
+          packet[1] = valuesMask;
+          //couple of versions shold be used, bitmask sort of present values
+          //sds
+          //temp/hum/pres
+          //gas
+          //noise
+          //maybe the first byte to have a different version number
+          //and a second one to be a mask of the used values.
+          packet[2] = (byte)hextemp;
+          packet[3] = (byte)hexhum;
+          packet[4] = (byte)noise; //noise
+          packet[5] = (byte)(pm10 / 256);
+          packet[6] = (byte)(pm10 % 256);
+          packet[7] = (byte)(pm25 / 256);
+          packet[8] = (byte)(pm25 % 256);
+          packet[9] = (byte)(pm1 / 256);
+          packet[10] = (byte)(pm1 % 256);
+          packet[11] = (byte)(pressure / 256);
+          packet[12] = (byte)(pressure % 256);
+  
+          digitalWrite(ledPin, HIGH);
+          SH_DEBUG_PRINTLN("TXing: ");
+          for (int i = 0; i < 13; i++) {
+            sprintf(hexbuffer, "%02x", (int)packet[i]);
+            SH_DEBUG_PRINT(hexbuffer);
+            SH_DEBUG_PRINT(" ");
+          }
+          SH_DEBUG_PRINTLN("");
+          #ifndef NO_CONNECTION_PROFILE
+            // Send it off
+            //ttn.sendBytes(packet, sizeof(packet));
+            // Start job
+            inSending = true;
+            do_send(&sendjob);
+          #endif
+        }
+  
+        //reset
+        noiseTotal = 0;
+        loopCycleCount = 0;
       }
-
-      //reset
-      noiseTotal = 0;
-      loopCycleCount = 0;
     }
+  } else if (!inSending) {
+    delayWithDecency(100);
   }
+  #ifndef NO_CONNECTION_PROFILE
+  if (status == 2 || status == 3) {
+    os_runloop_once();
+  }
+  #endif
 }
 
 
@@ -932,8 +949,8 @@ void handleResetResult() {
 
 
 void delayWithDecency(int units) {
-  for (int i = 0; i < units / 100; i++) {
-    delay(100);
+  for (int i = 0; i < units / 10; i++) {
+    delay(10);
     #ifndef NO_CONNECTION_PROFILE
       if (status == 2 || status == 3) {
         os_runloop_once();
@@ -1079,17 +1096,19 @@ void setupWifiInSTAMode() {
 
 void doLoRaWAN() {
   // LMIC init
+  SH_DEBUG_PRINTLN("Startup LoRaWAN...");
   os_init();
   // Reset the MAC state. Session and pending data transfers will be discarded.
+  LMIC_reset();
 
   // Set static session parameters. Instead of dynamically establishing a session
   // by joining the network, precomputed session parameters are be provided.
   #ifdef PROGMEM
 
     // Convert strings to C-style strings
-    const char* devAddrCStr = devaddr.c_str();
-    const char* nwkSKeyCStr = nwksKey.c_str();
-    const char* appSKeyCStr = appsKey.c_str();
+    const char* devAddrCStr = r_devaddr.c_str();
+    const char* nwkSKeyCStr = r_nwksKey.c_str();
+    const char* appSKeyCStr = r_appsKey.c_str();
 
     hexStringToByteArray(nwkSKeyCStr, NWKSKEY, 16); // Convert NWKSKEY
     hexStringToByteArray(appSKeyCStr, APPSKEY, 16); // Convert APPSKEY
@@ -1104,7 +1123,17 @@ void doLoRaWAN() {
     memcpy_P(appskey, APPSKEY, sizeof(APPSKEY));
     memcpy_P(nwkskey, NWKSKEY, sizeof(NWKSKEY));
 
-    LMIC_setSession (0x13, (u4_t)DEVADDR, NWKSKEY, APPSKEY);
+    LMIC_setSession (0x13, DEVADDR, nwkskey, appskey);
+    SH_DEBUG_PRINTLN("setup with PROGMEM");
+    debugSerial.println(DEVADDR);
+    for (int i=0; i< sizeof(appskey); i++) {
+      debugSerial.print(appskey[i]);
+    }
+    debugSerial.println("");
+    for (int i=0; i< sizeof(nwkskey); i++) {
+      debugSerial.print(nwkskey[i]);
+    }
+    debugSerial.println("");
   #else
     // If not running an AVR with PROGMEM, just use the arrays directly
     LMIC_setSession (0x13, DEVADDR, NWKSKEY, APPSKEY);
@@ -1269,7 +1298,7 @@ void do_send(osjob_t* j) {
     SH_DEBUG_PRINTLN(F("OP_TXRXPEND, not sending"));
   } else {
     // Prepare upstream data transmission at the next possible time.
-    LMIC_setTxData2(1, packet, sizeof(packet) - 1, 0);
+    LMIC_setTxData2(1, packet, sizeof(packet), 0);
     SH_DEBUG_PRINTLN(F("Packet queued"));
   }
   // Next TX is scheduled after TX_COMPLETE event.
@@ -1279,13 +1308,13 @@ void do_send(osjob_t* j) {
 
 void measureNoise() {
   int noiseSessionMax = 0;
-  int noiseSessionMin = 1024;
+  int noiseSessionMin = 4096;
   int currentSample = 0;
   int noiseMeasureLength = millis();
 
   for (int sample = 0; sample < NUM_NOISE_SAMPLES; sample++) {
     currentSample = analogRead(NOISE_MEASURE_PIN);
-    if (currentSample > 0 && currentSample < 1020) {
+    if (currentSample > 0 && currentSample < 4090) {
       if (currentSample > noiseSessionMax) {
         noiseSessionMax = currentSample;
       }
@@ -1300,7 +1329,7 @@ void measureNoise() {
     currentSessionNoise = 0;
   }
 
-  noiseTotal += currentSessionNoise;
+  noiseTotal += currentSessionNoise / 4;
 
   #ifdef NO_CONNECTION_PROFILE
     noiseMeasureLength = millis() - noiseMeasureLength;
@@ -1315,7 +1344,7 @@ void measureNoise() {
     SH_DEBUG_PRINT(" samples. Value = ");
     SH_DEBUG_PRINT_DEC(currentSessionNoise, DEC);
     SH_DEBUG_PRINT(", normalized: ");
-    SH_DEBUG_PRINTLN_DEC(currentSessionNoise / 4, DEC);
+    SH_DEBUG_PRINTLN_DEC(currentSessionNoise / 16, DEC);
   #endif
 }
 
@@ -1346,6 +1375,13 @@ void readEnvironmentSensors() {
 
     if (humidity <= 0 || humidity > 100 || temp > 100 || temp < -100 || pressure <= 0) {
       //fake result, pause and try again.
+      SH_DEBUG_PRINT("Fake BME result. Temp: ");
+      SH_DEBUG_PRINT_DEC(temp, DEC);
+      SH_DEBUG_PRINT(" Humidity: ");
+      SH_DEBUG_PRINT_DEC(humidity, DEC);
+      SH_DEBUG_PRINT(" Pressure: ");
+      SH_DEBUG_PRINTLN_DEC(pressure, DEC);
+      
       delayWithDecency(3000);
     } else {
       // OK result
@@ -1356,6 +1392,7 @@ void readEnvironmentSensors() {
     if (countTempHumReadouts <= 0) {
       //failed to read temp/hum/pres/gas
       //disable BME sensors
+      SH_DEBUG_PRINTLN("Disabled BME sensor");
       hasBME680 = false;
       hasBME280 = false;
     }
