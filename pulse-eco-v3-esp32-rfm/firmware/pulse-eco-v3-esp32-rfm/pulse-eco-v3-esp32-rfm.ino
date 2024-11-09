@@ -45,7 +45,7 @@
 #define LW_APPSKEY { 0x5F, 0xA5, 0x6B, 0x7C, 0xD6, 0xC1, 0x1F, 0xCF, 0x6D, 0xAE, 0x60, 0xD7, 0x65, 0xC9, 0x56, 0x7C }
 
 
-#define LW_DATARATE DR_SF7
+#define LW_DATARATE DR_SF9
 
 #define WL_MAC_ADDR_LENGTH 6
 
@@ -63,7 +63,7 @@
   #define SH_DEBUG_PRINTLN_DEC(a,b) debugSerial.println(a,b)
 #else
   #define NUM_MEASURE_SESSIONS 30
-  #define CYCLE_DELAY 30000
+  #define CYCLE_DELAY 26000
   #define SH_DEBUG_PRINTLN(a) 
   #define SH_DEBUG_PRINT(a) 
   #define SH_DEBUG_PRINT_DEC(a,b) 
@@ -572,7 +572,7 @@ void loop() {
   
           String url = "/wifipoint/store";
           url += "?devAddr=" + deviceName;
-          url += "&version=5";
+          url += "&version=6";
           if (pm10SensorOK) {
             url += "&pm10=" + String(pm10);
             url += "&pm25=" + String(pm25);
@@ -603,7 +603,7 @@ void loop() {
               ESP.restart();
               return;
             }
-            String userAgent = "WIFI_SENSOR_V5_1";
+            String userAgent = "WIFI_SENSOR_V6_1";
             #ifdef WITH_HOST_VERIFICATION
               userAgent = userAgent + "_V";
               if (client.verify(fingerprint, host)) {
@@ -712,7 +712,7 @@ void loop() {
         loopCycleCount = 0;
       }
     }
-  } else if (!inSending) {
+  } else {
     delayWithDecency(100);
   }
   #ifndef NO_CONNECTION_PROFILE
@@ -960,6 +960,9 @@ void delayWithDecency(int units) {
         os_runloop_once();
       }
     #endif
+    if (!inSending) {
+      server.handleClient();
+    }
   }
 }
 
@@ -1144,14 +1147,14 @@ void doLoRaWAN() {
     memcpy_P(nwkskey, NWKSKEY, sizeof(NWKSKEY));
 
     LMIC_setSession (0x13, DEVADDR, nwkskey, appskey);
-    SH_DEBUG_PRINTLN("setup with PROGMEM");
+//    SH_DEBUG_PRINTLN("setup with PROGMEM");
 //    debugSerial.println(DEVADDR);
 //    for (int i=0; i< sizeof(appskey); i++) {
-//      debugSerial.print(appskey[i]);
+//      debugSerial.print(appskey[i],HEX);
 //    }
 //    debugSerial.println("");
 //    for (int i=0; i< sizeof(nwkskey); i++) {
-//      debugSerial.print(nwkskey[i]);
+//      debugSerial.print(nwkskey[i],HEX);
 //    }
 //    debugSerial.println("");
   #else
