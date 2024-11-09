@@ -1,4 +1,3 @@
-const char CONFIGURE_page[] PROGMEM = R"=====(
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,9 +5,8 @@ const char CONFIGURE_page[] PROGMEM = R"=====(
 <style>
  body {font-family: 'Verdana'; padding: 2em;}
  input[type='text'] { font-size: 2em; width: 100%;}
- input[type='radio'] { display: none;}
  input[type='radio'] {
-  height: 2.5em; width: 2.5em; display: inline-block;cursor: pointer;
+  font-size: 1em; height: 2.5em; width: 2.5em; display: inline-block;cursor: pointer;
   vertical-align: middle; background: #FFF; border: 1px solid #d2d2d2; border-radius: 100%;}
  input[type='radio'] { border-color: #c2c2c2;}
  input[type='radio']:checked { background:gray;}
@@ -42,7 +40,7 @@ const char CONFIGURE_page[] PROGMEM = R"=====(
   e.preventDefault();
   bset('disabled', 'disabled');
   bset('value', 'Verifying, please wait...');
-  setTimeout(checkConnectivity, checkInterval);       
+  setTimeout(checkConnectivity, checkInterval); 	    
  });
 
  var connectivityCheck = 2;
@@ -63,27 +61,36 @@ const char CONFIGURE_page[] PROGMEM = R"=====(
   xhr.ontimeout = (e) => {
    setTimeout(checkConnectivity, checkInterval);
   };
-  xhr.send(null); 
+  xhr.send(null);	
  }
 </script>
 </head>
 <body>
- <h1 style='text-align: center;'>pulse.eco Wi-Fi v2</h1>
- <h1 style='text-align: center;'>DEVICE CONFIG</h1>
+ <h1 style='text-align: center;'>pulse.eco unified v3 TTGO</h1>
+ <h1 style='text-align: center;'>LORAWAN CONFIG</h1>
  <br/>
  <form method='post' action='/post'>
-  <p>PULSE.ECO CREDENTIALS</p>
+  <p>WI-FI INFO</p>
   <div class='line'></div>
-  <div>Device key:</div>
-  <div><input type='text' name='deviceId' required="required" /><br/><br/></div>
-  <p>HOME WI-FI INFO</p>
-  <div class='line'></div>
+  <div>Wi-Fi mode:</div>
+  <div><input type="radio" id="ap" name="wifiMode" value="ap"/>
+  <label for="ap">Broadcast own Wi-Fi</label></div>
+  <div><input type="radio" id="ap" name="wifiMode" value="client"/>
+  <label for="ap">Connect to home Wi-Fi</label></div>
+  <div><br/></div>    
   <div>Wi-Fi Network Name (SSID):</div>
   <div><input type='text' name='ssid' required="required" /><br/><br/></div>
   <div>Password:</div>
   <div><input type='text' name='password' required="required" /><br/><br/></div>
+  <p>PULSE.ECO CREDENTIALS</p>
+  <div class='line'></div>
+  <div>Device Address:</div>
+  <div><input type='text' name='devaddr' required="required" /><br/><br/></div>
+  <div>Nwk S Key:</div>
+  <div><input type='text' name='nwksKey' required="required" /><br/><br/></div>
+  <div>App S Key:</div>
+  <div><input type='text' name='appsKey' required="required" /><br/><br/></div>
   <div><input id='submit' type='submit' value='Save & Connect' /></div>
  </form>
 </body>
 </html>
-)=====";
