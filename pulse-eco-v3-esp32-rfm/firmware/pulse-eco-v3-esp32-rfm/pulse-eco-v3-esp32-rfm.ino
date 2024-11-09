@@ -53,7 +53,7 @@
 
 //Development / production profiles
 //#define NO_CONNECTION_PROFILE 1
-#define DEBUG_PROFILE 1
+//#define DEBUG_PROFILE 1
 #ifdef DEBUG_PROFILE
   #define NUM_MEASURE_SESSIONS 10
   #define CYCLE_DELAY 2000
@@ -164,7 +164,6 @@ const lmic_pinmap lmic_pins = {
 // Constants
 const char* host = "pulse.eco";
 const char* fingerprint = "4E 9F 97 B8 6C 8F 70 C0 2A C9 6A 83 6D 5F 3B C7 81 C5 D6 3D";
-const int ledPin =  LED_BUILTIN;
 
 // Stores the result of various function calls for sps sensor to check success or failure
 int16_t operationResult;
@@ -265,8 +264,6 @@ void discoverAndSetStatus() {
 
 // the setup routine runs once when you press reset:
 void setup() {
-  pinMode(ledPin, OUTPUT);
-  digitalWrite(ledPin, HIGH);
 
   adcAttachPin(NOISE_MEASURE_PIN);
   analogSetPinAttenuation(NOISE_MEASURE_PIN, ADC_0db);
@@ -426,6 +423,7 @@ void setup() {
       //Input params
       //Start up the web server
       SH_DEBUG_PRINTLN("Setting up configuration web server");
+      displayConfigScreen();
       WiFi.disconnect();
       WiFi.mode(WIFI_AP);
 
@@ -464,8 +462,9 @@ void setup() {
 
   //wait a bit before your start
   delayWithDecency(2000);
-  digitalWrite(ledPin, LOW);
-  displayInitScreen(true);
+  if (status > 0) {
+    displayInitScreen(true);
+  }
 }
 
 // Counters
@@ -515,6 +514,9 @@ void loop() {
       noConnectionLoopCount++;
       // second 20 cycles
       // 1 minute 60 * 20 = 1200 cycles
+      if (noConnectionLoopCount % 20 == 0) {
+        displayConfigScreen();
+      }
       // 10 minutes 10 * 1200 = 12000  cycles
       if (noConnectionLoopCount >= 12000) {
         //Reboot after 10 minutes in setup mode. Might be a temp failure in the network
@@ -570,11 +572,11 @@ void loop() {
   
           String url = "/wifipoint/store";
           url += "?devAddr=" + deviceName;
-          url += "&version=2";
+          url += "&version=5";
           if (pm10SensorOK) {
             url += "&pm10=" + String(pm10);
             url += "&pm25=" + String(pm25);
-            url += "&pm25=" + String(pm1);
+            url += "&pm1=" + String(pm1);
           }
           if (noise > 10) {
             url += "&noise=" + String(noise);
@@ -601,7 +603,7 @@ void loop() {
               ESP.restart();
               return;
             }
-            String userAgent = "WIFI_SENSOR_V2_1";
+            String userAgent = "WIFI_SENSOR_V5_1";
             #ifdef WITH_HOST_VERIFICATION
               userAgent = userAgent + "_V";
               if (client.verify(fingerprint, host)) {
@@ -688,7 +690,6 @@ void loop() {
           packet[11] = (byte)(pressure / 256);
           packet[12] = (byte)(pressure % 256);
   
-          digitalWrite(ledPin, HIGH);
           SH_DEBUG_PRINTLN("TXing: ");
           for (int i = 0; i < 13; i++) {
             sprintf(hexbuffer, "%02x", (int)packet[i]);
@@ -702,6 +703,7 @@ void loop() {
             // Start job
             inSending = true;
             do_send(&sendjob);
+            dataPacketsSentCount++;
           #endif
         }
   
@@ -863,10 +865,12 @@ void handleStatusValues() {
   if (pm10SensorOK) {
     valuesString += "pm10=" + String(pm10) + " ug/m3";
     valuesString += ";pm25=" + String(pm25) + " ug/m3";
+    valuesString += ";pm1=" + String(pm1) + " ug/m3";
     valuesString += ";sds=OK";
   } else {
     valuesString += "pm10=N/A";
     valuesString += ";pm25=N/A";
+    valuesString += ";pm1=N/A";
     valuesString += ";sds=missing or bad";
   }
 
@@ -893,8 +897,8 @@ void handleStatusValues() {
     valuesString += ";bme=missing or bad";
   }
 
+  valuesString += ";packets=" + String(dataPacketsSentCount);
   valuesString += ";network=" + ssid;
-  valuesString += ";packets=" + dataPacketsSentCount;
 
   //stringformat: pm10,pm25,temp,hum,noise,packets,bme,sds,noise,wifi
 
@@ -1033,6 +1037,24 @@ void displayInitScreen(bool waiting) {
   display.display();
 }
 
+
+void displayConfigScreen() {
+  display.clearDisplay();
+  display.setRotation(3);
+  display.setTextColor(WHITE);
+  display.setTextSize(1);
+  display.invertDisplay(invertDisplay);
+  invertDisplay++;
+  invertDisplay %= -2;
+  display.setCursor(5, 40);
+  display.println("pulse.eco");
+
+  display.setCursor(15, 60);
+  display.println("CONFIG");
+
+  display.display();
+}
+
 void setupWifiInSTAMode() {
   //Try to connect to the network
   SH_DEBUG_PRINTLN("Trying to connect...");
@@ -1051,13 +1073,11 @@ void setupWifiInSTAMode() {
   #endif
 
   // Wait for connection
-  boolean toggleLed = false;
   int numTries = 200;
 
   while (WiFi.status() != WL_CONNECTED && --numTries > 0) {
     delay (250);
     SH_DEBUG_PRINT(".");
-    toggleLed = !toggleLed;
   }
 
   SH_DEBUG_PRINT(WiFi.status());
@@ -1125,15 +1145,15 @@ void doLoRaWAN() {
 
     LMIC_setSession (0x13, DEVADDR, nwkskey, appskey);
     SH_DEBUG_PRINTLN("setup with PROGMEM");
-    debugSerial.println(DEVADDR);
-    for (int i=0; i< sizeof(appskey); i++) {
-      debugSerial.print(appskey[i]);
-    }
-    debugSerial.println("");
-    for (int i=0; i< sizeof(nwkskey); i++) {
-      debugSerial.print(nwkskey[i]);
-    }
-    debugSerial.println("");
+//    debugSerial.println(DEVADDR);
+//    for (int i=0; i< sizeof(appskey); i++) {
+//      debugSerial.print(appskey[i]);
+//    }
+//    debugSerial.println("");
+//    for (int i=0; i< sizeof(nwkskey); i++) {
+//      debugSerial.print(nwkskey[i]);
+//    }
+//    debugSerial.println("");
   #else
     // If not running an AVR with PROGMEM, just use the arrays directly
     LMIC_setSession (0x13, DEVADDR, NWKSKEY, APPSKEY);
@@ -1278,6 +1298,7 @@ void onEvent (ev_t ev) {
       break;
     case EV_TXCANCELED:
       SH_DEBUG_PRINTLN(F("EV_TXCANCELED"));
+      inSending = false;
       break;
     case EV_RXSTART:
       /* do not print anything -- it wrecks timing */

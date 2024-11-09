@@ -19,25 +19,26 @@ input[type='submit'] {font-size: 1.5em;width: 100%;}
 }
 </style></head>
 <body>
-<h1>pulse.eco Wi-Fi v2</h1>
+<h1>pulse.eco device</h1>
 <h1>DEVICE STATUS</h1>
 <p>LAST MEASUREMENT</p>
 <div class='line'></div>
 <div>PM10: <a id="pm10"></a></div>
 <div>PM2.5: <a id="pm25"></a></div>
+<div>PM1: <a id="pm1"></a></div>
 <div>Temperature: <a id="temperature"></a></div>
 <div>Humidity: <a id="humidity"></a></div>
 <div>Pressure: <a id="pressure"></a></div>
 <div>Noise: <a id="noise"></a></div>
 <p>CONNECTION</p>
 <div class='line'></div>
-<div>Wi-Fi network: <a id="network"></div>
-<div>Data packets sent since last reboot: <a id="packets"></div>
+<div>Wi-Fi network: <a id="network"></a></div>
+<div>Data packets sent since last reboot: <a id="packets"></a></div>
 <p>PERIPHERALS</p>
 <div class='line'></div>
-<div>BME sensor: <a id="bme"></div>
-<div>SDS011 sensor: <a id="sds"></div>
-<div>Noise sensor: <a id="snoise"></div>
+<div>BME sensor: <a id="bme"></a></div>
+<div>SDS011 sensor: <a id="sds"></a></div>
+<div>Noise sensor: <a id="snoise"></a></div>
 <p>REBOOT</p>
 <div class='line'></div>
 <form method='post' action='/reboot'><div><input type='submit' value='Reboot device' /></div></form>
