@@ -45,7 +45,7 @@
 #define LW_APPSKEY { 0x5F, 0xA5, 0x6B, 0x7C, 0xD6, 0xC1, 0x1F, 0xCF, 0x6D, 0xAE, 0x60, 0xD7, 0x65, 0xC9, 0x56, 0x7C }
 
 
-#define LW_DATARATE DR_SF9
+#define LW_DATARATE DR_SF12
 
 #define WL_MAC_ADDR_LENGTH 6
 
@@ -598,6 +598,7 @@ void loop() {
           #ifndef NO_CONNECTION_PROFILE
             SH_DEBUG_PRINT("connecting to ");
             SH_DEBUG_PRINTLN(host);
+            client.setInsecure();//skip verification
             if (!client.connect(host, 443)) {
               SH_DEBUG_PRINTLN("Connection failed. Restarting");
               ESP.restart();
